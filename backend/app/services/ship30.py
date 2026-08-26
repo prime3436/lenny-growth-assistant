@@ -21,7 +21,7 @@ from app.models.schemas import SourceChunk
 logger = logging.getLogger(__name__)
 
 
-SHIP30_SYSTEM = """You are a world-class writer trained in the Ship 30 for 30 framework.
+SHIP30_SYSTEM_FULL = """You are a world-class writer trained in the Ship 30 for 30 framework.
 You write atomic essays that are punchy, skimmable, and genuinely useful.
 
 Your essays follow this structure:
@@ -44,6 +44,19 @@ Style rules:
 Do NOT add a title header — the caller will handle the title."""
 
 
+SHIP30_SYSTEM_CONCISE = """You are a writer trained in the Ship 30 for 30 framework.
+Write a concise atomic essay — punchy, skimmable, and actionable.
+
+Structure:
+1. **Hook**: One strong opening sentence (counterintuitive or bold claim).
+2. **Big Idea** (bolded): The core insight in one sentence.
+3. **Body**: 2-3 insight sections, each with a **bolded callout** and 2-3 sentences.
+4. **CTA**: One actionable takeaway sentence.
+
+Rules: short paragraphs, no jargon, cite transcript guests/episodes.
+Target: ~400 words. Do NOT add a title header."""
+
+
 SHIP30_USER_TEMPLATE = """Write a Ship 30 for 30 atomic essay about: **{topic}**
 
 Use the following Lenny's Podcast transcript context to ground your insights:
@@ -51,7 +64,7 @@ Use the following Lenny's Podcast transcript context to ground your insights:
 {context}
 
 Remember:
-- ~1,250 words
+- Target ~{word_target} words
 - Strong hook first
 - Bold the key insight callouts
 - Cite specific episodes/guests where relevant
@@ -67,6 +80,10 @@ async def generate_ship30_essay(
     """
     Generate a Ship 30 for 30 essay on `topic`.
 
+    Adapts target length based on provider:
+    - Cloud (Anthropic/OpenAI): ~1,250 words (full Ship30 spec)
+    - Local (Ollama): ~400 words (concise version for CPU speed)
+
     Returns:
         (essay_markdown: str, sources: list[SourceChunk])
     """
@@ -74,16 +91,31 @@ async def generate_ship30_essay(
     sources = retrieve(topic, top_k=top_k)
     context = format_context(sources)
 
-    # 2. Build prompt
-    user_prompt = SHIP30_USER_TEMPLATE.format(topic=topic, context=context)
-
-    # 3. Call LLM
+    # 2. Resolve provider
     provider, pname, mname = get_provider(provider_name, model_name)
-    logger.info(f"Generating Ship30 essay via {pname}/{mname} | topic: {topic!r}")
+    is_local = pname == "ollama"
+
+    # 3. Adapt system prompt and word target based on provider
+    system = SHIP30_SYSTEM_CONCISE if is_local else SHIP30_SYSTEM_FULL
+    word_target = 400 if is_local else 1250
+
+    # 4. For Qwen3 models: suppress think-mode to save tokens on CPU
+    topic_prompt = topic
+    if is_local and "qwen3" in mname.lower():
+        topic_prompt = f"/no_think {topic}"
+
+    user_prompt = SHIP30_USER_TEMPLATE.format(
+        topic=topic_prompt, context=context, word_target=word_target
+    )
+
+    logger.info(
+        f"Generating Ship30 essay via {pname}/{mname} | "
+        f"topic: {topic!r} | target: {word_target}w"
+    )
 
     essay = await provider.complete(
         messages=[{"role": "user", "content": user_prompt}],
-        system=SHIP30_SYSTEM,
+        system=system,
     )
 
     return essay, sources

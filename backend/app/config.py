@@ -22,13 +22,13 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://lenny:lenny@localhost:5432/lenny_db"
 
     # LLM
-    llm_provider: Literal["anthropic", "openai", "ollama"] = "anthropic"
+    llm_provider: Literal["anthropic", "openai", "ollama"] = "ollama"
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
     claude_model: str = "claude-3-5-sonnet-20241022"
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "llama3.2"
+    ollama_model: str = "qwen3:4b"
 
     # RAG
     transcripts_dir: str = "../data/transcripts"

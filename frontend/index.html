@@ -34,7 +34,7 @@
     <div class="model-section">
       <label class="section-label">Model</label>
       <div class="model-selector" id="modelSelector">
-        <div class="model-option active" data-provider="anthropic" data-model="claude-3-5-sonnet-20241022">
+        <div class="model-option" data-provider="anthropic" data-model="claude-3-5-sonnet-20241022">
           <span class="model-dot cloud"></span>
           <div>
             <div class="model-name">Claude 3.5 Sonnet</div>
@@ -48,7 +48,7 @@
             <div class="model-sub">OpenAI · Cloud</div>
           </div>
         </div>
-        <div class="model-option" data-provider="ollama" data-model="qwen3:4b">
+        <div class="model-option active" data-provider="ollama" data-model="qwen3:4b">
           <span class="model-dot local"></span>
           <div>
             <div class="model-name">Qwen3 4B ⭐</div>
@@ -79,7 +79,15 @@
         <span class="status-dot" id="statusDot"></span>
         <span id="statusText">Connecting…</span>
       </div>
-      <div class="status-model" id="statusModel"></div>
+      <div class="status-bar-right">
+        <div class="status-model" id="statusModel"></div>
+        <button class="settings-btn" id="settingsBtn" title="Settings — configure API keys">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+      </div>
     </div>
   </aside>
 
@@ -249,6 +257,74 @@
 
   <!-- ── Toast notifications ───────────────────────────────────────────── -->
   <div class="toast-container" id="toastContainer"></div>
+
+  <!-- ── Settings Modal ──────────────────────────────────────────────── -->
+  <div class="modal-overlay" id="settingsModal" style="display:none">
+    <div class="modal-box settings-modal-box">
+      <div class="modal-header">
+        <h2 class="modal-title">⚙️ Settings</h2>
+        <button class="modal-close" id="closeSettingsModal" aria-label="Close">✕</button>
+      </div>
+
+      <div class="settings-section">
+        <label class="settings-label">LLM Provider</label>
+        <div class="settings-provider-grid" id="settingsProviderGrid">
+          <label class="provider-radio">
+            <input type="radio" name="settingsProvider" value="ollama" checked id="spOllama">
+            <span class="provider-radio-body">
+              <span class="model-dot local"></span>
+              <span>
+                <strong>Ollama</strong>
+                <small>Local · No API key needed</small>
+              </span>
+            </span>
+          </label>
+          <label class="provider-radio">
+            <input type="radio" name="settingsProvider" value="anthropic" id="spAnthropic">
+            <span class="provider-radio-body">
+              <span class="model-dot cloud"></span>
+              <span>
+                <strong>Anthropic Claude</strong>
+                <small id="anthropicStatus">API key required</small>
+              </span>
+            </span>
+          </label>
+          <label class="provider-radio">
+            <input type="radio" name="settingsProvider" value="openai" id="spOpenAI">
+            <span class="provider-radio-body">
+              <span class="model-dot cloud"></span>
+              <span>
+                <strong>OpenAI GPT-4o</strong>
+                <small id="openaiStatus">API key required</small>
+              </span>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-section" id="apiKeySection">
+        <label class="settings-label" for="apiKeyInput">API Key</label>
+        <p class="settings-hint">Your key is stored <strong>server-side only</strong> — never in the browser, never logged, never committed to Git.</p>
+        <div class="api-key-row">
+          <input
+            type="password"
+            id="apiKeyInput"
+            class="api-key-input"
+            placeholder="Paste your API key here…"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button class="btn-primary" id="saveKeyBtn">Save Key</button>
+        </div>
+        <div class="api-key-feedback" id="apiKeyFeedback"></div>
+      </div>
+
+      <div class="settings-footer">
+        <button class="btn-secondary" id="testConnectionBtn">🔌 Test Connection</button>
+        <div class="test-result" id="testResult"></div>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

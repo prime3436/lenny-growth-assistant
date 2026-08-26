@@ -7,13 +7,16 @@ const API_BASE = 'http://localhost:8000';
 // ── State ─────────────────────────────────────────────────────
 const state = {
   sessionId: null,
-  activeProvider: 'anthropic',
-  activeModel: 'claude-3-5-sonnet-20241022',
+  activeProvider: 'ollama',
+  activeModel: 'qwen3:4b',
   currentArtifact: null,
   artifactPanelOpen: true,
   artifacts: [],
   isLoading: false,
 };
+
+// Cloud providers that need an API key
+const CLOUD_PROVIDERS = ['anthropic', 'openai'];
 
 // ── DOM refs ──────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -336,7 +339,9 @@ function renderArtifact(artifact) {
 
   artifactTitle.textContent = artifact.title;
   artifactTypeBadge.textContent = artifact.artifact_type === 'ship30' ? 'Ship 30' : artifact.artifact_type;
-  artifactWordCount.textContent = `${artifact.word_count.toLocaleString()} words`;
+  // Count words from the raw markdown content
+  const wordCount = artifact.content ? artifact.content.trim().split(/\s+/).filter(Boolean).length : (artifact.word_count || 0);
+  artifactWordCount.textContent = `${wordCount.toLocaleString()} words`;
 
   // Iframe: inject sanitized HTML with styling
   const styledHtml = `
@@ -379,10 +384,8 @@ function renderArtifact(artifact) {
 }
 
 function setIframeContent(html) {
-  const doc = artifactIframe.contentDocument || artifactIframe.contentWindow.document;
-  doc.open();
-  doc.write(html);
-  doc.close();
+  // Use srcdoc — works reliably with sandboxed iframes regardless of origin
+  artifactIframe.srcdoc = html;
 }
 
 // ── Artifact sidebar ──────────────────────────────────────────
@@ -421,6 +424,26 @@ function toggleArtifactPanel() {
 // ── Model switching ───────────────────────────────────────────
 
 async function switchModel(provider, model) {
+  // Show a clear warning for cloud providers — no API key configured locally
+  if (CLOUD_PROVIDERS.includes(provider)) {
+    const providerLabel = provider === 'anthropic' ? 'Anthropic (Claude)' : 'OpenAI (GPT-4o)';
+    showToast(
+      `☁️ Cloud provider — API key not configured. Add ${provider.toUpperCase()}_API_KEY to .env and restart to use ${providerLabel}.`,
+      'warning'
+    );
+    // Still update the UI selection visually but stay on current working model for actual calls
+    document.querySelectorAll('.model-option').forEach(el => {
+      el.classList.toggle('active', el.dataset.provider === provider && el.dataset.model === model);
+    });
+    // Update state so user knows what they picked, but warn in status bar
+    state.activeProvider = provider;
+    state.activeModel = model;
+    statusDot.className = 'status-dot warn';
+    statusText.textContent = `${providerLabel} — API key required`;
+    statusModel.textContent = `Add ${provider.toUpperCase()}_API_KEY to .env`;
+    return;
+  }
+
   state.activeProvider = provider;
   state.activeModel = model;
 
@@ -597,6 +620,122 @@ ship30Modal.addEventListener('click', e => {
   if (e.target === ship30Modal) ship30Modal.style.display = 'none';
 });
 
+// ── Settings modal ────────────────────────────────────────────
+
+const settingsModal  = $('settingsModal');
+const settingsBtn    = $('settingsBtn');
+const closeSettings  = $('closeSettingsModal');
+const apiKeyInput    = $('apiKeyInput');
+const apiKeyFeedback = $('apiKeyFeedback');
+const apiKeySection  = $('apiKeySection');
+const testResult     = $('testResult');
+
+function openSettingsModal() {
+  settingsModal.style.display = 'flex';
+  updateApiKeySection();
+  loadProviderStatus();
+}
+
+function closeSettingsModal() {
+  settingsModal.style.display = 'none';
+  apiKeyInput.value = '';
+  apiKeyFeedback.textContent = '';
+  testResult.textContent = '';
+}
+
+function updateApiKeySection() {
+  const provider = document.querySelector('input[name="settingsProvider"]:checked')?.value;
+  if (provider === 'ollama') {
+    apiKeySection.classList.remove('visible');
+  } else {
+    apiKeySection.classList.add('visible');
+    apiKeyInput.placeholder = provider === 'anthropic'
+      ? 'sk-ant-api03-...'
+      : 'sk-proj-...';
+  }
+}
+
+async function loadProviderStatus() {
+  try {
+    const status = await apiFetch('/api/settings/providers');
+    $('anthropicStatus').textContent = status.anthropic.configured
+      ? '✅ Configured' : 'API key required';
+    $('openaiStatus').textContent = status.openai.configured
+      ? '✅ Configured' : 'API key required';
+  } catch { /* non-critical */ }
+}
+
+settingsBtn.addEventListener('click', openSettingsModal);
+closeSettings.addEventListener('click', closeSettingsModal);
+settingsModal.addEventListener('click', e => {
+  if (e.target === settingsModal) closeSettingsModal();
+});
+
+document.querySelectorAll('input[name="settingsProvider"]').forEach(radio => {
+  radio.addEventListener('change', updateApiKeySection);
+});
+
+$('saveKeyBtn').addEventListener('click', async () => {
+  const provider = document.querySelector('input[name="settingsProvider"]:checked')?.value;
+  const key = apiKeyInput.value.trim();
+  if (!key) {
+    apiKeyFeedback.className = 'api-key-feedback error';
+    apiKeyFeedback.textContent = 'Please paste your API key first.';
+    return;
+  }
+
+  apiKeyFeedback.className = 'api-key-feedback';
+  apiKeyFeedback.textContent = 'Saving…';
+
+  try {
+    const res = await apiFetch('/api/settings/keys', {
+      method: 'POST',
+      body: JSON.stringify({ provider, api_key: key }),
+    });
+    apiKeyFeedback.className = 'api-key-feedback success';
+    apiKeyFeedback.textContent = `✅ ${res.message}`;
+    apiKeyInput.value = '';  // clear from DOM immediately
+    loadProviderStatus();
+
+    // Also switch the model selector to this provider
+    const modelMap = {
+      anthropic: 'claude-3-5-sonnet-20241022',
+      openai: 'gpt-4o',
+    };
+    if (modelMap[provider]) {
+      // Override cloud warning — key is now set
+      state.activeProvider = provider;
+      state.activeModel = modelMap[provider];
+      document.querySelectorAll('.model-option').forEach(el => {
+        el.classList.toggle('active',
+          el.dataset.provider === provider && el.dataset.model === modelMap[provider]);
+      });
+      showToast(`Switched to ${provider} — key configured`, 'success');
+    }
+  } catch (err) {
+    apiKeyFeedback.className = 'api-key-feedback error';
+    apiKeyFeedback.textContent = `❌ ${err.message}`;
+  }
+});
+
+$('testConnectionBtn').addEventListener('click', async () => {
+  const provider = document.querySelector('input[name="settingsProvider"]:checked')?.value;
+  testResult.className = 'test-result';
+  testResult.textContent = 'Testing…';
+
+  try {
+    const res = await apiFetch('/api/settings/test', {
+      method: 'POST',
+      body: JSON.stringify({ provider }),
+    });
+    testResult.className = `test-result ${res.success ? 'success' : 'error'}`;
+    testResult.textContent = res.success ? `✅ ${res.message}` : `❌ ${res.message}`;
+  } catch (err) {
+    testResult.className = 'test-result error';
+    testResult.textContent = `❌ ${err.message}`;
+  }
+});
+
 // ── Init ──────────────────────────────────────────────────────
 
 (async function init() {
@@ -606,9 +745,26 @@ ship30Modal.addEventListener('click', e => {
   // Poll health every 30s
   setInterval(checkHealth, 30_000);
 
+  // Set Ollama as the default active model in UI
+  document.querySelectorAll('.model-option').forEach(el => {
+    const isOllama = el.dataset.provider === 'ollama' && el.dataset.model === 'qwen3:4b';
+    el.classList.toggle('active', isOllama);
+  });
+
+  // Switch backend to ollama on load
+  try {
+    await apiFetch('/api/models/switch', {
+      method: 'POST',
+      body: JSON.stringify({ provider: 'ollama', model_name: 'qwen3:4b' }),
+    });
+  } catch (e) {
+    console.warn('Could not set default model on init:', e.message);
+  }
+
   // Focus input
   chatInput.focus();
 
   console.log('%c🎙️ Lenny Growth Assistant', 'font-size:16px;font-weight:bold;color:#7c6aff');
+  console.log('%cDefault model: Ollama qwen3:4b (local)', 'color:#34d399');
   console.log('%cAPI:', 'font-weight:bold', API_BASE);
 })();

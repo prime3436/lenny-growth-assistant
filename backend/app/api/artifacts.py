@@ -105,17 +105,26 @@ async def generate_artifact(
             # Generic RAG-grounded generation
             sources = retrieve(body.topic, top_k=5)
             context = format_context(sources)
+            provider, pname, mname = get_provider(body.model_provider, body.model_name)
+
+            # Adapt for local vs cloud
+            is_local = pname == "ollama"
+            length_hint = "concise (~300 words)" if is_local else "detailed"
+            topic_str = body.topic
+            if is_local and "qwen3" in mname.lower():
+                topic_str = f"/no_think {body.topic}"
+
             prompt_map = {
                 "markdown": (
-                    f"Write a detailed, well-structured Markdown document about: **{body.topic}**\n\n"
+                    f"Write a {length_hint}, well-structured Markdown document about: **{topic_str}**\n\n"
                     f"Ground your content in the following Lenny's Podcast transcripts:\n\n{context}"
                 ),
                 "html": (
-                    f"Write a clean, semantic HTML snippet (no <html>/<body> wrapper) about: **{body.topic}**\n\n"
+                    f"Write a {length_hint}, clean, semantic HTML snippet (no <html>/<body> wrapper) about: **{topic_str}**\n\n"
                     f"Use only safe HTML tags. Ground content in:\n\n{context}"
                 ),
             }
-            provider, pname, mname = get_provider(body.model_provider, body.model_name)
+
             content = await provider.complete(
                 messages=[{"role": "user", "content": prompt_map[body.artifact_type]}],
                 system=SYSTEM_PROMPT,

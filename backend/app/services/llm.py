@@ -158,27 +158,37 @@ class OllamaProvider(BaseLLMProvider):
         self.think = think  # Qwen3 thinking mode — set think=True for deeper reasoning
 
     def _build_payload(self, messages: list[dict], stream: bool = False) -> dict:
+        # IMPORTANT: Do NOT include an 'options' dict.
+        # On this Ollama/Qwen3 build, any 'options' key causes empty content responses.
+        # Qwen3 think mode is disabled via /no_think prefix on the last user message.
+        processed = []
+        for i, msg in enumerate(messages):
+            if msg.get("role") == "user" and i == len(messages) - 1:
+                # /no_think disables Qwen3 extended reasoning for faster responses
+                processed.append({**msg, "content": "/no_think\n" + msg["content"]})
+            else:
+                processed.append(msg)
         return {
             "model": self.model,
-            "messages": messages,
+            "messages": processed,
             "stream": stream,
-            "options": {
-                "temperature": 0.6,
-                "num_predict": 512,   # ~300 words — fast on CPU, enough for a good answer
-                "think": self.think,  # Qwen3 extended reasoning (keep False for speed)
-            },
         }
 
     async def complete(self, messages: list[dict], system: str = SYSTEM_PROMPT) -> str:
         all_messages = [{"role": "system", "content": system}] + messages
-        async with httpx.AsyncClient(timeout=180.0) as client:
+        async with httpx.AsyncClient(timeout=300.0) as client:
             try:
                 resp = await client.post(
                     f"{self.base_url}/api/chat",
                     json=self._build_payload(all_messages, stream=False),
                 )
                 resp.raise_for_status()
-                return resp.json()["message"]["content"]
+                data = resp.json()
+                content = data.get("message", {}).get("content", "")
+                if not content:
+                    logger.error(f"Ollama returned empty content. Full response: {data}")
+                    raise RuntimeError("Ollama returned an empty response. The model may have timed out or rejected the prompt.")
+                return content
             except httpx.ConnectError:
                 raise RuntimeError(
                     "Ollama is not running. Start it with: `ollama serve`"
@@ -250,22 +260,37 @@ def build_provider(
     provider: str | None = None,
     model_name: str | None = None,
     think: bool = False,
+    api_key_override: str | None = None,
 ) -> BaseLLMProvider:
-    """Build an LLM provider instance from settings or explicit overrides."""
+    """Build an LLM provider instance from settings or explicit overrides.
+
+    api_key_override: if provided, uses this key instead of settings/.env.
+    Runtime keys from the settings API are checked automatically.
+    """
+    from app.api.settings import get_runtime_key  # avoid circular at module level
+
     s = settings
     prov = (provider or s.llm_provider).lower()
 
     if prov == "anthropic":
         model = model_name or s.claude_model
-        if not s.anthropic_api_key:
-            raise ValueError("ANTHROPIC_API_KEY is not set in .env")
-        return AnthropicProvider(api_key=s.anthropic_api_key, model=model)
+        key = api_key_override or get_runtime_key("anthropic") or s.anthropic_api_key
+        if not key:
+            raise ValueError(
+                "No Anthropic API key found. Add it via Settings → API Key, "
+                "or set ANTHROPIC_API_KEY in your .env file."
+            )
+        return AnthropicProvider(api_key=key, model=model)
 
     elif prov == "openai":
         model = model_name or s.openai_model
-        if not s.openai_api_key:
-            raise ValueError("OPENAI_API_KEY is not set in .env")
-        return OpenAIProvider(api_key=s.openai_api_key, model=model)
+        key = api_key_override or get_runtime_key("openai") or s.openai_api_key
+        if not key:
+            raise ValueError(
+                "No OpenAI API key found. Add it via Settings → API Key, "
+                "or set OPENAI_API_KEY in your .env file."
+            )
+        return OpenAIProvider(api_key=key, model=model)
 
     elif prov == "ollama":
         model = model_name or s.ollama_model
@@ -281,7 +306,7 @@ def get_provider(
 ) -> tuple[BaseLLMProvider, str, str]:
     """
     Returns (provider_instance, provider_name, model_name).
-    If provider/model_name is None, uses the global default from settings.
+    Automatically uses runtime-configured keys from the settings API.
     """
     global _current_provider, _current_provider_name, _current_model_name
 
