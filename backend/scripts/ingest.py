@@ -30,12 +30,13 @@ if __name__ == "__main__":
 
     settings = get_settings()
 
-    logger.info(f"Starting ingestion → {settings.transcripts_dir}")
+    target_dir = settings.resolved_transcripts_dir
+    logger.info(f"Starting ingestion → {target_dir}")
     chunks = ingest_transcripts(
-        data_dir=settings.transcripts_dir,
+        data_dir=target_dir,
         chunk_size=settings.chunk_size,
         chunk_overlap=settings.chunk_overlap,
         max_episodes=args.max,
         force_refresh=args.force,
     )
-    logger.info(f"✅ Done: {len(chunks)} chunks from transcripts in {settings.transcripts_dir}")
+    logger.info(f"✅ Done: {len(chunks)} chunks from transcripts in {target_dir}")

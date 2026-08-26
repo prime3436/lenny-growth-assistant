@@ -121,3 +121,18 @@ The Preview iframe uses a deliberate reading-optimized style:
 | Typing dots | `typingBounce` (4px), staggered | 1.2s ease-in-out infinite |
 | Send button | `scale(1.04)` on hover | 150ms |
 | Artifact panel | `width` transition | 300ms ease |
+
+---
+
+## 9. Security & Iframe Isolation Strategy
+
+The Artifact Viewer renders user- and model-generated HTML/Markdown. To prevent Cross-Site Scripting (XSS), DOM theft, or session hijacking, we employ a defense-in-depth security model:
+
+### 1. Dual-Layer Sanitization & Sandboxing
+* **Backend Layer (`bleach`):** All HTML is strictly sanitized using Python `bleach` with an explicit whitelist of safe tags (`p`, `strong`, `h1`-`h4`, `blockquote`, `code`, `table`, etc.) and attributes (`href`, `class`, `title`). Disallowed tags, `script` tags, and inline event handlers (`onload`, `onerror`) are stripped completely.
+* **Frontend Layer (`<iframe sandbox="allow-same-origin">`):** The artifact is injected into an iframe configured **without `allow-scripts`**.
+
+### 2. Rationale for `sandbox="allow-same-origin"` (Without `allow-scripts`)
+* **Why omit `allow-scripts`** Omitting `allow-scripts` ensures that zero executable JavaScript can run inside the iframe, neutralizing all stored XSS vectors.
+* **Why include `allow-same-origin`?** In the absence of `allow-scripts`, the document cannot make scripted API calls or access `parent.document` / cookies. Including `allow-same-origin` allows the parent window to safely inject sanitized HTML and styling into `iframe.contentDocument` directly without triggering cross-origin data URI browser specific restrictions.
+* **Security Result:** Safe, responsive rich-text rendering with guaranteed zero-script execution.

@@ -43,6 +43,23 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",")]
 
+    @property
+    def resolved_transcripts_dir(self) -> str:
+        """Dynamically resolve transcript directory across local dev, repo root, or Docker container."""
+        from pathlib import Path
+        candidate = Path(self.transcripts_dir)
+        if candidate.is_dir():
+            return str(candidate)
+        # Check relative to backend/
+        backend_rel = Path(__file__).resolve().parent.parent.parent / "data" / "transcripts"
+        if backend_rel.is_dir():
+            return str(backend_rel)
+        # Check docker container default
+        container_path = Path("/app/data/transcripts")
+        if container_path.is_dir():
+            return str(container_path)
+        return self.transcripts_dir
+
 
 @lru_cache
 def get_settings() -> Settings:

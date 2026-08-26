@@ -42,7 +42,7 @@ def build_index(force_refresh: bool = False) -> int:
 
     logger.info("Building BM25 index …")
     _chunks = ingest_transcripts(
-        data_dir=settings.transcripts_dir,
+        data_dir=settings.resolved_transcripts_dir,
         chunk_size=settings.chunk_size,
         chunk_overlap=settings.chunk_overlap,
         force_refresh=force_refresh,
