@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lenny Growth Assistant</title>
+  <meta name="description" content="AI-powered growth assistant grounded in Lenny's Podcast transcripts. Ask anything about product growth, strategy, and leadership." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- ── Sidebar ─────────────────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <div class="logo-icon">L</div>
+        <span class="logo-text">Lenny AI</span>
+      </div>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <button class="new-chat-btn" id="newChatBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Conversation
+    </button>
+
+    <!-- Model selector -->
+    <div class="model-section">
+      <label class="section-label">Model</label>
+      <div class="model-selector" id="modelSelector">
+        <div class="model-option active" data-provider="anthropic" data-model="claude-3-5-sonnet-20241022">
+          <span class="model-dot cloud"></span>
+          <div>
+            <div class="model-name">Claude 3.5 Sonnet</div>
+            <div class="model-sub">Anthropic · Cloud</div>
+          </div>
+        </div>
+        <div class="model-option" data-provider="openai" data-model="gpt-4o">
+          <span class="model-dot cloud"></span>
+          <div>
+            <div class="model-name">GPT-4o</div>
+            <div class="model-sub">OpenAI · Cloud</div>
+          </div>
+        </div>
+        <div class="model-option" data-provider="ollama" data-model="qwen3:4b">
+          <span class="model-dot local"></span>
+          <div>
+            <div class="model-name">Qwen3 4B ⭐</div>
+            <div class="model-sub">Ollama · Local · Recommended</div>
+          </div>
+        </div>
+        <div class="model-option" data-provider="ollama" data-model="llama3.2">
+          <span class="model-dot local"></span>
+          <div>
+            <div class="model-name">Llama 3.2</div>
+            <div class="model-sub">Ollama · Local · Lightweight</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Artifacts history -->
+    <div class="sidebar-section">
+      <label class="section-label">Artifacts</label>
+      <div class="artifacts-list" id="artifactsList">
+        <div class="empty-state-mini">No artifacts yet</div>
+      </div>
+    </div>
+
+    <!-- Status bar -->
+    <div class="status-bar">
+      <div class="status-indicator" id="statusIndicator">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Connecting…</span>
+      </div>
+      <div class="status-model" id="statusModel"></div>
+    </div>
+  </aside>
+
+  <!-- ── Main Layout ─────────────────────────────────────────────────── -->
+  <div class="main-layout" id="mainLayout">
+
+    <!-- ── Chat Panel ──────────────────────────────────────────────── -->
+    <section class="chat-panel" id="chatPanel">
+      <!-- Top bar -->
+      <header class="chat-header">
+        <h1 class="chat-title">Lenny Growth Assistant</h1>
+        <div class="header-actions">
+          <button class="icon-btn" id="toggleArtifactBtn" title="Toggle artifact panel">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Messages -->
+      <div class="messages-container" id="messagesContainer">
+        <div class="welcome-screen" id="welcomeScreen">
+          <div class="welcome-icon">🎙️</div>
+          <h2>Ask Lenny anything</h2>
+          <p>Grounded in 300+ podcast transcript episodes covering product growth, strategy, metrics, and leadership.</p>
+          <div class="suggestion-grid">
+            <button class="suggestion-chip" data-query="How do B2B SaaS companies find their first 10 customers?">
+              First 10 customers in B2B SaaS
+            </button>
+            <button class="suggestion-chip" data-query="What makes a great product manager according to Lenny's guests?">
+              What makes a great PM?
+            </button>
+            <button class="suggestion-chip" data-query="How do top companies approach pricing strategy?">
+              Pricing strategy insights
+            </button>
+            <button class="suggestion-chip" data-query="What are the best growth loops in consumer products?">
+              Consumer growth loops
+            </button>
+          </div>
+        </div>
+        <div class="messages-list" id="messagesList"></div>
+      </div>
+
+      <!-- Input area -->
+      <div class="input-area">
+        <div class="input-wrapper">
+          <textarea
+            id="chatInput"
+            placeholder="Ask about product growth, strategy, or generate a Ship 30 essay…"
+            rows="1"
+            aria-label="Chat input"
+          ></textarea>
+          <div class="input-actions">
+            <button class="artifact-trigger-btn" id="ship30Btn" title="Generate Ship 30 for 30 essay">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              Ship 30
+            </button>
+            <button class="send-btn" id="sendBtn" aria-label="Send message">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="input-hint">
+          Press <kbd>Enter</kbd> to send · <kbd>Shift+Enter</kbd> for new line · <strong>Ship 30</strong> to generate an essay
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Artifact Panel ────────────────────────────────────────────── -->
+    <section class="artifact-panel" id="artifactPanel">
+      <div class="artifact-empty" id="artifactEmpty">
+        <div class="artifact-empty-icon">✨</div>
+        <h3>Artifact Viewer</h3>
+        <p>Generate a Ship 30 essay or ask the assistant to create a document — it will appear here.</p>
+        <button class="generate-demo-btn" id="generateDemoBtn">
+          Try: Generate a Ship 30 essay
+        </button>
+      </div>
+
+      <div class="artifact-content" id="artifactContent" style="display:none">
+        <!-- Artifact header -->
+        <div class="artifact-header">
+          <div class="artifact-meta">
+            <span class="artifact-type-badge" id="artifactTypeBadge">Ship 30</span>
+            <span class="artifact-word-count" id="artifactWordCount"></span>
+          </div>
+          <div class="artifact-controls">
+            <button class="tab-btn active" id="tabPreview" data-tab="preview">Preview</button>
+            <button class="tab-btn" id="tabRaw" data-tab="raw">Markdown</button>
+            <button class="icon-btn" id="copyArtifactBtn" title="Copy to clipboard">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+            </button>
+            <button class="icon-btn" id="exportArtifactBtn" title="Download as Markdown">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <h2 class="artifact-title" id="artifactTitle"></h2>
+
+        <!-- Tab content -->
+        <div class="artifact-body">
+          <!-- Preview tab: sandboxed iframe -->
+          <div class="tab-pane active" id="panePreview">
+            <iframe
+              id="artifactIframe"
+              sandbox="allow-same-origin"
+              title="Artifact preview"
+            ></iframe>
+          </div>
+          <!-- Raw tab: markdown source -->
+          <div class="tab-pane" id="paneRaw" style="display:none">
+            <pre class="raw-content" id="rawContent"></pre>
+          </div>
+        </div>
+
+        <!-- Sources -->
+        <div class="sources-section" id="sourcesSection">
+          <button class="sources-toggle" id="sourcesToggle">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+            Sources
+          </button>
+          <div class="sources-list" id="sourcesList"></div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ── Ship30 Modal ──────────────────────────────────────────────────── -->
+  <div class="modal-overlay" id="ship30Modal" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Generate Ship 30 for 30 Essay</h3>
+        <button class="modal-close" id="closeShip30Modal">×</button>
+      </div>
+      <div class="modal-body">
+        <label for="ship30Topic">Topic or question</label>
+        <input
+          type="text"
+          id="ship30Topic"
+          placeholder="e.g. Why most startups die before product-market fit"
+          autocomplete="off"
+        />
+        <div class="modal-hint">~1,250 words · Ship 30 format · Grounded in Lenny's episodes</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancelShip30">Cancel</button>
+        <button class="btn-primary" id="confirmShip30">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          Generate Essay
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Toast notifications ───────────────────────────────────────────── -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

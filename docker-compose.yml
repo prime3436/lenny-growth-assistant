@@ -1,0 +1,55 @@
+services:
+  # ── PostgreSQL ─────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: lenny
+      POSTGRES_PASSWORD: lenny
+      POSTGRES_DB: lenny_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lenny -d lenny_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend API ────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://lenny:lenny@db:5432/lenny_db
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      TRANSCRIPTS_DIR: /app/data/transcripts
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data:/app/data
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ── Frontend (static file server) ─────────────────────────
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pgdata:

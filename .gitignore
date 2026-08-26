@@ -1,0 +1,20 @@
+# Git ignore
+.env
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+node_modules/
+.DS_Store
+Thumbs.db
+
+# Data (keep directory, ignore cached transcripts if too large)
+# data/transcripts/*.md   # Uncomment to exclude transcript cache from git
