@@ -16,6 +16,7 @@ const state = {
   artifactPanelOpen: true,
   artifacts: [],
   conversations: [],
+  artifactRequestId: 0,
   isLoading: false,
 };
 
@@ -329,6 +330,7 @@ function escHtml(str) {
 async function generateArtifact(topic, type = 'ship30') {
   if (state.isLoading) return;
   state.isLoading = true;
+  const requestId = ++state.artifactRequestId;
 
   showToast('Generating essay… this may take 15-30s', 'info');
 
@@ -350,6 +352,10 @@ async function generateArtifact(topic, type = 'ship30') {
       }),
     });
 
+    // A New Conversation click may have reset the UI while this request ran.
+    // Never let a stale response repopulate the new conversation's panel.
+    if (requestId !== state.artifactRequestId || !state.sessionId) return;
+
     state.currentArtifact = artifact;
     state.artifacts.unshift(artifact);
     renderArtifact(artifact);
@@ -366,11 +372,12 @@ async function generateArtifact(topic, type = 'ship30') {
 
     showToast('Essay generated!', 'success');
   } catch (err) {
+    if (requestId !== state.artifactRequestId) return;
     clearArtifactLoading();
     showToast(`Generation failed: ${err.message}`, 'error');
     appendMessage('assistant', `⚠️ Could not generate artifact: ${err.message}`);
   } finally {
-    state.isLoading = false;
+    if (requestId === state.artifactRequestId) state.isLoading = false;
   }
 }
 
@@ -680,6 +687,7 @@ $('newChatBtn').addEventListener('click', () => {
   // Reset state
   state.sessionId = null;
   state.messages = [];
+  state.artifactRequestId += 1;
   state.currentArtifact = null;
   state.artifacts = [];
   state.isLoading = false;

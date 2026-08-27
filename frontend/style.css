@@ -228,7 +228,13 @@ body {
 }
 .conversation-item:hover,
 .artifact-item:hover { background: var(--bg-hover); color: var(--text-primary); }
-.conversation-item.active,
+.conversation-item.active {
+  background: var(--accent-glow);
+  color: var(--text-primary);
+  border-color: rgba(124, 106, 255, 0.35);
+  border-left: 3px solid var(--accent);
+  padding-left: 8px;
+}
 .artifact-item.active { background: var(--bg-active); color: var(--text-primary); border-color: var(--border); }
 
 /* Status bar */
