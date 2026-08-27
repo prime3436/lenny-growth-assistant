@@ -216,9 +216,9 @@ body {
   appearance: none;
   -webkit-appearance: none;
   width: 100%;
-  background-color: transparent;
-  border: 1px solid transparent;
-  outline: none;
+  background-color: transparent !important;
+  border: 1px solid transparent !important;
+  outline: none !important;
   font-family: inherit;
   font-size: 12px;
   text-align: left;
