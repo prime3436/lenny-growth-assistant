@@ -182,8 +182,10 @@ body {
 }
 .model-option:hover { background: var(--bg-hover); }
 .model-option.active {
-  background: var(--bg-active);
-  border-color: var(--border);
+  background: var(--accent-glow);
+  border-color: rgba(124, 106, 255, 0.35);
+  color: var(--text-primary);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .model-dot {
@@ -211,6 +213,8 @@ body {
 
 .conversation-item,
 .artifact-item {
+  appearance: none;
+  -webkit-appearance: none;
   width: 100%;
   background: none;
   font: inherit;
