@@ -45,16 +45,17 @@ Do NOT add a title header — the caller will handle the title."""
 
 
 SHIP30_SYSTEM_CONCISE = """You are a writer trained in the Ship 30 for 30 framework.
-Write a concise atomic essay — punchy, skimmable, and actionable.
+Write a solid atomic essay — punchy, skimmable, and genuinely actionable.
 
 Structure:
-1. **Hook**: One strong opening sentence (counterintuitive or bold claim).
-2. **Big Idea** (bolded): The core insight in one sentence.
-3. **Body**: 2-3 insight sections, each with a **bolded callout** and 2-3 sentences.
-4. **CTA**: One actionable takeaway sentence.
+1. **Hook**: One strong opening sentence (counterintuitive, bold, or provocative).
+2. **Setup** (2-3 sentences): Why this matters right now.
+3. **Big Idea** (1 sentence, bolded): The core insight in one line.
+4. **Body** (3-4 sections): Each with a **bolded callout** headline and 3-4 sentences of insight.
+5. **CTA** (2 sentences): What should the reader do starting Monday?
 
-Rules: short paragraphs, no jargon, cite transcript guests/episodes.
-Target: ~400 words. Do NOT add a title header."""
+Rules: short paragraphs (2-4 sentences), cite transcript guests/episodes, no jargon.
+Target: ~800 words. Do NOT add a title header."""
 
 
 SHIP30_USER_TEMPLATE = """Write a Ship 30 for 30 atomic essay about: **{topic}**
@@ -97,7 +98,7 @@ async def generate_ship30_essay(
 
     # 3. Adapt system prompt and word target based on provider
     system = SHIP30_SYSTEM_CONCISE if is_local else SHIP30_SYSTEM_FULL
-    word_target = 400 if is_local else 1250
+    word_target = 800 if is_local else 1250
 
     # 4. For Qwen3 models: suppress think-mode to save tokens on CPU
     topic_prompt = topic

@@ -2,7 +2,9 @@
    Lenny Growth Assistant — Frontend Application Logic
    ───────────────────────────────────────────────────────────── */
 
-const API_BASE = 'http://localhost:8000';
+// Use relative URLs — nginx proxies /api/* and /health to the backend.
+// This works for both localhost:3000 and any tunnel URL automatically.
+const API_BASE = '';
 
 // ── State ─────────────────────────────────────────────────────
 const state = {
@@ -606,13 +608,41 @@ $('sidebarToggle').addEventListener('click', () => {
   $('sidebar').classList.toggle('collapsed');
 });
 
-// New chat
-$('newChatBtn').addEventListener('click', () => {
+// New chat — fully resets session, UI, and artifact panel
+$('newChatBtn').addEventListener('click', async () => {
+  // Reset state
   state.sessionId = null;
+  state.currentArtifact = null;
+  state.artifacts = [];
+  state.isLoading = false;
+
+  // Clear chat messages
   messagesList.innerHTML = '';
   welcomeScreen.style.display = 'flex';
   chatInput.value = '';
-  showToast('New conversation started', 'info');
+  autoResize(chatInput);
+
+  // Reset artifact panel to empty state
+  if (artifactContent)  { artifactContent.style.display  = 'none'; }
+  if (artifactEmpty)    { artifactEmpty.style.display    = 'flex'; }
+  if (artifactTitle)    { artifactTitle.textContent      = 'Artifact'; }
+  if (artifactWordCount){ artifactWordCount.textContent  = ''; }
+  if (rawContent)       { rawContent.textContent         = ''; }
+  if (artifactIframe)   { artifactIframe.srcdoc          = ''; }
+
+  // Clear sidebar artifact list
+  if (artifactsList) { artifactsList.innerHTML = '<p class="no-artifacts">No artifacts yet</p>'; }
+
+  // Eagerly create a new session so the backend is ready
+  try {
+    const session = await apiFetch('/api/sessions', { method: 'POST', body: JSON.stringify({}) });
+    state.sessionId = session.id;
+    showToast(`New conversation started`, 'success');
+  } catch (e) {
+    showToast('New conversation started (session pending)', 'info');
+  }
+
+  chatInput.focus();
 });
 
 // Modal backdrop close
