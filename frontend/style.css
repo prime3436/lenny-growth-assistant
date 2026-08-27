@@ -216,8 +216,11 @@ body {
   appearance: none;
   -webkit-appearance: none;
   width: 100%;
-  background: none;
-  font: inherit;
+  background-color: transparent;
+  border: 1px solid transparent;
+  outline: none;
+  font-family: inherit;
+  font-size: 12px;
   text-align: left;
   padding: 8px 10px;
   border-radius: var(--radius-sm);
