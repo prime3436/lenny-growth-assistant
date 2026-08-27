@@ -71,7 +71,19 @@ async function ensureSession() {
   state.sessionId = session.id;
   state.activeProvider = session.model_provider;
   state.activeModel = session.model_name;
-  await refreshConversations();
+
+  // Put a new session into the sidebar immediately. Previously we waited for
+  // the reply to finish and refresh from the server, which made a normal chat
+  // look as if it had vanished while an essay appeared straight away.
+  state.conversations = [
+    {
+      ...session,
+      title: 'New conversation',
+      message_count: 0,
+    },
+    ...state.conversations.filter(conversation => conversation.id !== session.id),
+  ];
+  renderConversations();
 }
 
 async function refreshConversations() {
@@ -84,18 +96,38 @@ async function refreshConversations() {
 }
 
 function renderConversations() {
-  if (!state.conversations.length) {
+  // A session is created as soon as someone starts a new chat. Keep the
+  // current blank session available, but don't fill the history with old,
+  // never-used "New conversation" entries.
+  const visibleConversations = state.conversations.filter(
+    conversation => conversation.message_count > 0 || conversation.id === state.sessionId,
+  );
+
+  if (!visibleConversations.length) {
     conversationsList.innerHTML = '<div class="empty-state-mini">No conversations yet</div>';
     return;
   }
-  conversationsList.innerHTML = state.conversations.map(conversation => `
+  conversationsList.innerHTML = visibleConversations.map(conversation => `
     <button class="conversation-item ${conversation.id === state.sessionId ? 'active' : ''}"
             data-session-id="${conversation.id}" title="${escHtml(conversation.title)}">
-      ${escHtml(conversation.title)}
+      <span class="conversation-item-title">${escHtml(conversation.title)}</span>
+      <span class="conversation-item-meta">${conversationMeta(conversation)}</span>
     </button>`).join('');
   conversationsList.querySelectorAll('.conversation-item').forEach(button => {
     button.addEventListener('click', () => loadConversation(button.dataset.sessionId));
   });
+}
+
+function conversationMeta(conversation) {
+  const count = Number(conversation.message_count) || 0;
+  if (!count) return 'Ready to start';
+
+  const created = new Date(conversation.created_at);
+  const date = Number.isNaN(created.getTime())
+    ? ''
+    : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(created);
+  const messages = `${count} ${count === 1 ? 'message' : 'messages'}`;
+  return date ? `${messages} · ${date}` : messages;
 }
 
 function setCurrentConversationTitle(title) {
@@ -152,6 +184,9 @@ async function sendMessage(text) {
 
   try {
     await ensureSession();
+    // Name the history item as soon as the user sends a message, rather than
+    // leaving it as "New conversation" until the streamed reply completes.
+    setCurrentConversationTitle(text);
     hideWelcome();
     appendMessage('user', text);
     chatInput.value = '';
@@ -692,7 +727,8 @@ $('sidebarToggle').addEventListener('click', () => {
   $('sidebar').classList.toggle('collapsed');
 });
 
-// New chat is intentionally local-only. The first message creates the session lazily.
+// New chat is intentionally local-only. A history entry is created and named
+// immediately when the user sends their first message.
 $('newChatBtn').addEventListener('click', () => {
   // Reset state
   state.sessionId = null;

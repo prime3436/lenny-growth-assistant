@@ -15,7 +15,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 
-from app.db.session import get_db
+from app.db.session import AsyncSessionLocal, get_db
 from app.models.database import Session as DBSession, Message as DBMessage
 from app.models.schemas import (
     SessionCreate, SessionResponse, SessionSummary,
@@ -268,6 +268,21 @@ async def chat_stream(body: ChatRequest, db: AsyncSession = Depends(get_db)):
 
     sources_dicts = [s.model_dump() for s in sources]
 
+    # Save the user's message before starting the streamed response. This keeps
+    # the conversation in history even if they start a new chat, navigate away,
+    # or the model takes a long time to finish.
+    async with AsyncSessionLocal() as message_db:
+        message_db.add(DBMessage(
+            session_id=body.session_id,
+            role="user",
+            content=body.message,
+            model_provider=pname,
+            model_name=mname,
+            sources=[],
+            created_at=datetime.now(timezone.utc),
+        ))
+        await message_db.commit()
+
     async def event_generator():
         full_response = ""
         t0 = time.monotonic()
@@ -281,21 +296,16 @@ async def chat_stream(body: ChatRequest, db: AsyncSession = Depends(get_db)):
 
         latency_ms = (time.monotonic() - t0) * 1000
 
-        # Persist messages
-        async with db as active_db:
-            user_msg = DBMessage(
-                session_id=body.session_id, role="user",
-                content=body.message, model_provider=pname,
-                model_name=mname, sources=[], created_at=datetime.now(timezone.utc),
-            )
+        # A streaming response outlives the request dependency. Persist the
+        # completed assistant reply with its own committed session.
+        async with AsyncSessionLocal() as active_db:
             assistant_msg = DBMessage(
                 session_id=body.session_id, role="assistant",
                 content=full_response, model_provider=pname,
                 model_name=mname, sources=sources_dicts,
             )
-            active_db.add(user_msg)
             active_db.add(assistant_msg)
-            await active_db.flush()
+            await active_db.commit()
 
         # Log trajectory
         turn_count = len(history) // 2 + 1
