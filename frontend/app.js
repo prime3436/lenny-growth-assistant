@@ -98,6 +98,13 @@ function renderConversations() {
   });
 }
 
+function setCurrentConversationTitle(title) {
+  const conversation = state.conversations.find(item => item.id === state.sessionId);
+  if (!conversation) return;
+  conversation.title = title.slice(0, 80);
+  renderConversations();
+}
+
 async function loadConversation(sessionId) {
   if (sessionId === state.sessionId || state.isLoading) return;
   try {
@@ -337,6 +344,9 @@ async function generateArtifact(topic, type = 'ship30') {
   try {
     await ensureSession();
     hideWelcome();
+    // Artifact-only sessions do not have a user message to name them. Show the
+    // requested topic in history immediately while generation is in progress.
+    setCurrentConversationTitle(topic);
 
     // Show loading state in artifact panel
     showArtifactLoading(topic, type);

@@ -159,6 +159,15 @@ async def generate_artifact(
         sources=[s.model_dump() for s in sources],
     )
     db.add(artifact)
+
+    # An artifact can be the first action in a session. Save its requested topic
+    # so the conversation sidebar displays a meaningful name instead of
+    # "New conversation" when there are no chat messages.
+    metadata = dict(session.user_metadata or {})
+    metadata["title"] = body.topic.strip()[:80]
+    metadata["kind"] = "artifact"
+    session.user_metadata = metadata
+
     await db.flush()
     await db.refresh(artifact)
 

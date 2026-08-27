@@ -88,7 +88,9 @@ async def list_sessions(db: AsyncSession = Depends(get_db)):
             created_at=session.created_at,
             model_provider=session.model_provider,
             model_name=session.model_name,
-            title=(title or "New conversation").strip()[:80],
+            # Artifact-only sessions have no user message. Their topic is saved
+            # as metadata so the history never falls back to an anonymous label.
+            title=(title or (session.user_metadata or {}).get("title") or "New conversation").strip()[:80],
             message_count=count,
         )
         for session, title, count in result.all()
