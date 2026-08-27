@@ -9,11 +9,13 @@ const API_BASE = '';
 // ── State ─────────────────────────────────────────────────────
 const state = {
   sessionId: null,
+  messages: [],
   activeProvider: 'ollama',
   activeModel: 'qwen3:4b',
   currentArtifact: null,
   artifactPanelOpen: true,
   artifacts: [],
+  conversations: [],
   isLoading: false,
 };
 
@@ -43,6 +45,7 @@ const statusDot        = $('statusDot');
 const statusText       = $('statusText');
 const statusModel      = $('statusModel');
 const artifactsList    = $('artifactsList');
+const conversationsList = $('conversationsList');
 const toastContainer   = $('toastContainer');
 
 // ── API helpers ───────────────────────────────────────────────
@@ -67,6 +70,54 @@ async function ensureSession() {
   state.sessionId = session.id;
   state.activeProvider = session.model_provider;
   state.activeModel = session.model_name;
+  await refreshConversations();
+}
+
+async function refreshConversations() {
+  try {
+    state.conversations = await apiFetch('/api/sessions');
+    renderConversations();
+  } catch (err) {
+    console.warn('Could not load conversation history:', err.message);
+  }
+}
+
+function renderConversations() {
+  if (!state.conversations.length) {
+    conversationsList.innerHTML = '<div class="empty-state-mini">No conversations yet</div>';
+    return;
+  }
+  conversationsList.innerHTML = state.conversations.map(conversation => `
+    <button class="conversation-item ${conversation.id === state.sessionId ? 'active' : ''}"
+            data-session-id="${conversation.id}" title="${escHtml(conversation.title)}">
+      ${escHtml(conversation.title)}
+    </button>`).join('');
+  conversationsList.querySelectorAll('.conversation-item').forEach(button => {
+    button.addEventListener('click', () => loadConversation(button.dataset.sessionId));
+  });
+}
+
+async function loadConversation(sessionId) {
+  if (sessionId === state.sessionId || state.isLoading) return;
+  try {
+    const [messages, artifacts] = await Promise.all([
+      apiFetch(`/api/sessions/${sessionId}/history`),
+      apiFetch(`/api/artifacts/session/${sessionId}`),
+    ]);
+    state.sessionId = sessionId;
+    state.messages = [];
+    state.artifacts = artifacts;
+    state.currentArtifact = artifacts[0] || null;
+    messagesList.innerHTML = '';
+    welcomeScreen.style.display = messages.length ? 'none' : 'flex';
+    messages.forEach(message => appendMessage(message.role, message.content, message.sources));
+    updateArtifactsSidebar();
+    if (state.currentArtifact) renderArtifact(state.currentArtifact);
+    else resetArtifactPanel();
+    renderConversations();
+  } catch (err) {
+    showToast(`Could not load conversation: ${err.message}`, 'error');
+  }
 }
 
 // ── Health check / status ─────────────────────────────────────
@@ -158,6 +209,7 @@ async function sendMessage(text) {
     }
 
     scrollToBottom();
+    await refreshConversations();
   } catch (err) {
     appendMessage('assistant', `⚠️ Error: ${err.message}`);
     showToast(err.message, 'error');
@@ -192,6 +244,7 @@ function hideWelcome() {
 }
 
 function appendMessage(role, content, sources = []) {
+  state.messages.push({ role, content, sources });
   const div = document.createElement('div');
   div.className = `message ${role}`;
 
@@ -333,6 +386,20 @@ function showArtifactLoading(topic, type) {
 function clearArtifactLoading() {
   artifactEmpty.style.display = 'flex';
   artifactContent.style.display = 'none';
+}
+
+function resetArtifactPanel() {
+  state.currentArtifact = null;
+  artifactContent.style.display = 'none';
+  artifactEmpty.style.display = 'flex';
+  artifactTitle.textContent = 'Artifact';
+  artifactTypeBadge.textContent = '';
+  artifactWordCount.textContent = '';
+  rawContent.textContent = '';
+  sourcesSection.style.display = 'none';
+  sourcesList.innerHTML = '';
+  setIframeContent('');
+  updateArtifactsSidebar();
 }
 
 function renderArtifact(artifact) {
@@ -608,10 +675,11 @@ $('sidebarToggle').addEventListener('click', () => {
   $('sidebar').classList.toggle('collapsed');
 });
 
-// New chat — fully resets session, UI, and artifact panel
-$('newChatBtn').addEventListener('click', async () => {
+// New chat is intentionally local-only. The first message creates the session lazily.
+$('newChatBtn').addEventListener('click', () => {
   // Reset state
   state.sessionId = null;
+  state.messages = [];
   state.currentArtifact = null;
   state.artifacts = [];
   state.isLoading = false;
@@ -622,25 +690,9 @@ $('newChatBtn').addEventListener('click', async () => {
   chatInput.value = '';
   autoResize(chatInput);
 
-  // Reset artifact panel to empty state
-  if (artifactContent)  { artifactContent.style.display  = 'none'; }
-  if (artifactEmpty)    { artifactEmpty.style.display    = 'flex'; }
-  if (artifactTitle)    { artifactTitle.textContent      = 'Artifact'; }
-  if (artifactWordCount){ artifactWordCount.textContent  = ''; }
-  if (rawContent)       { rawContent.textContent         = ''; }
-  if (artifactIframe)   { artifactIframe.srcdoc          = ''; }
-
-  // Clear sidebar artifact list
-  if (artifactsList) { artifactsList.innerHTML = '<p class="no-artifacts">No artifacts yet</p>'; }
-
-  // Eagerly create a new session so the backend is ready
-  try {
-    const session = await apiFetch('/api/sessions', { method: 'POST', body: JSON.stringify({}) });
-    state.sessionId = session.id;
-    showToast(`New conversation started`, 'success');
-  } catch (e) {
-    showToast('New conversation started (session pending)', 'info');
-  }
+  resetArtifactPanel();
+  renderConversations();
+  showToast('Ready for a new conversation', 'success');
 
   chatInput.focus();
 });
@@ -793,6 +845,7 @@ $('testConnectionBtn').addEventListener('click', async () => {
 
   // Focus input
   chatInput.focus();
+  await refreshConversations();
 
   console.log('%c🎙️ Lenny Growth Assistant', 'font-size:16px;font-weight:bold;color:#7c6aff');
   console.log('%cDefault model: Ollama qwen3:4b (local)', 'color:#34d399');

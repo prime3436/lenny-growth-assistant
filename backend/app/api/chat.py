@@ -13,12 +13,12 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.db.session import get_db
 from app.models.database import Session as DBSession, Message as DBMessage
 from app.models.schemas import (
-    SessionCreate, SessionResponse,
+    SessionCreate, SessionResponse, SessionSummary,
     ChatRequest, ChatResponse,
     ModelSwitchRequest, ModelSwitchResponse,
     ChatMessage,
@@ -56,6 +56,43 @@ async def create_session(
     await db.flush()
     await db.refresh(session)
     return session
+
+
+@router.get("/sessions", response_model=list[SessionSummary])
+async def list_sessions(db: AsyncSession = Depends(get_db)):
+    """List saved conversations, newest activity first."""
+    first_user_message = (
+        select(DBMessage.content)
+        .where(DBMessage.session_id == DBSession.id, DBMessage.role == "user")
+        .order_by(DBMessage.created_at)
+        .limit(1)
+        .scalar_subquery()
+    )
+    message_count = (
+        select(func.count(DBMessage.id))
+        .where(DBMessage.session_id == DBSession.id)
+        .scalar_subquery()
+    )
+    last_message_at = (
+        select(func.max(DBMessage.created_at))
+        .where(DBMessage.session_id == DBSession.id)
+        .scalar_subquery()
+    )
+    result = await db.execute(
+        select(DBSession, first_user_message, message_count)
+        .order_by(last_message_at.desc().nulls_last(), DBSession.created_at.desc())
+    )
+    return [
+        SessionSummary(
+            id=session.id,
+            created_at=session.created_at,
+            model_provider=session.model_provider,
+            model_name=session.model_name,
+            title=(title or "New conversation").strip()[:80],
+            message_count=count,
+        )
+        for session, title, count in result.all()
+    ]
 
 
 @router.get("/sessions/{session_id}", response_model=SessionResponse)

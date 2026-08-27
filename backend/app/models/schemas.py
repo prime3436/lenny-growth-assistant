@@ -20,8 +20,15 @@ class SessionResponse(BaseModel):
     created_at: datetime
     model_provider: str
     model_name: str
+    user_metadata: dict[str, Any] = Field(default_factory=dict)
 
     model_config = {"from_attributes": True, "protected_namespaces": ()}
+
+
+class SessionSummary(SessionResponse):
+    """The lightweight data needed to render a saved conversation."""
+    title: str
+    message_count: int
 
 
 # ── Chat ──────────────────────────────────────────────────────────────────────

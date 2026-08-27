@@ -9,7 +9,7 @@
 ## Features
 
 - 🎙️ **Grounded Chat** — Every answer cites specific Lenny's Podcast episodes with guest name, episode title, and relevance score
-- ✍️ **Ship 30 for 30 Skill** — Generate atomic essays from transcript insights, adapted for local/cloud model speed
+- ✍️ **Ship 30 for 30 Skill** — Generate atomic essays from transcript insights (*Note: Local Ollama targets ~800 words to keep generation time reasonable on CPU; cloud providers like Claude target the full ~1,250 words*)
 - 🖼️ **Artifact Viewer** — Side-by-side canvas (Preview + Raw Markdown) with sandboxed iframe rendering
 - 🔄 **Flexible LLM Config** — Switch between Claude 3.5 Sonnet, GPT-4o, and local Ollama at runtime without restarting
 - ⚙️ **Settings UI** — Configure API keys securely at runtime; keys are stored server-side only (never in browser/DB/logs)

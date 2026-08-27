@@ -30,6 +30,7 @@ class Session(Base):
     )
     model_provider: Mapped[str] = mapped_column(String(50), default="anthropic")
     model_name: Mapped[str] = mapped_column(String(100), default="claude-3-5-sonnet-20241022")
+    user_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
 
     messages: Mapped[list["Message"]] = relationship(
         back_populates="session", cascade="all, delete-orphan", order_by="Message.created_at"

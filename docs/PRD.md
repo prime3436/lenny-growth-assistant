@@ -91,6 +91,8 @@ Solution: A RAG-powered assistant that ingests, indexes, and retrieves transcrip
 | Transcript quality varies | `_clean_text()` removes timestamps/labels |
 | LLM hallucination | Strict system prompt + source citation requirement |
 | API key exposure | `.env` in `.gitignore`, `.env.example` provided |
+| Ship30 CPU latency | Local Ollama target is ~800 words to keep generation time reasonable on CPU; cloud path (Claude/GPT-4o) hits the full ~1,250-word target. |
+| Agent SDK API | Direct Anthropic/OpenAI API is used instead of the Agent SDK tool loop. Standard RAG (eager context injection) proved faster and more reliable than tool-calling for this specific dataset. |
 
 ---
 
