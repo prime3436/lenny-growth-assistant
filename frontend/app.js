@@ -1,12 +1,6 @@
-/* ─────────────────────────────────────────────────────────────
-   Lenny Growth Assistant — Frontend Application Logic
-   ───────────────────────────────────────────────────────────── */
 
-// Use relative URLs — nginx proxies /api/* and /health to the backend.
-// This works for both localhost:3000 and any tunnel URL automatically.
 const API_BASE = '';
 
-// ── State ─────────────────────────────────────────────────────
 const state = {
   sessionId: null,
   messages: [],
@@ -20,10 +14,8 @@ const state = {
   isLoading: false,
 };
 
-// Cloud providers that need an API key
 const CLOUD_PROVIDERS = ['anthropic', 'openai'];
 
-// ── DOM refs ──────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 const chatInput        = $('chatInput');
 const sendBtn          = $('sendBtn');
@@ -49,8 +41,6 @@ const artifactsList    = $('artifactsList');
 const conversationsList = $('conversationsList');
 const toastContainer   = $('toastContainer');
 
-// ── API helpers ───────────────────────────────────────────────
-
 async function apiFetch(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...options.headers },
@@ -63,8 +53,6 @@ async function apiFetch(path, options = {}) {
   return res.json();
 }
 
-// ── Session management ────────────────────────────────────────
-
 async function ensureSession() {
   if (state.sessionId) return;
   const session = await apiFetch('/api/sessions', { method: 'POST', body: JSON.stringify({}) });
@@ -72,9 +60,6 @@ async function ensureSession() {
   state.activeProvider = session.model_provider;
   state.activeModel = session.model_name;
 
-  // Put a new session into the sidebar immediately. Previously we waited for
-  // the reply to finish and refresh from the server, which made a normal chat
-  // look as if it had vanished while an essay appeared straight away.
   state.conversations = [
     {
       ...session,
@@ -96,9 +81,7 @@ async function refreshConversations() {
 }
 
 function renderConversations() {
-  // A session is created as soon as someone starts a new chat. Keep the
-  // current blank session available, but don't fill the history with old,
-  // never-used "New conversation" entries.
+
   const visibleConversations = state.conversations.filter(
     conversation => conversation.message_count > 0 || conversation.id === state.sessionId,
   );
@@ -160,8 +143,6 @@ async function loadConversation(sessionId) {
   }
 }
 
-// ── Health check / status ─────────────────────────────────────
-
 async function checkHealth() {
   try {
     const h = await apiFetch('/health');
@@ -175,8 +156,6 @@ async function checkHealth() {
   }
 }
 
-// ── Send message (SSE streaming) ─────────────────────────────
-
 async function sendMessage(text) {
   if (!text.trim() || state.isLoading) return;
   state.isLoading = true;
@@ -184,15 +163,13 @@ async function sendMessage(text) {
 
   try {
     await ensureSession();
-    // Name the history item as soon as the user sends a message, rather than
-    // leaving it as "New conversation" until the streamed reply completes.
+
     setCurrentConversationTitle(text);
     hideWelcome();
     appendMessage('user', text);
     chatInput.value = '';
     autoResize(chatInput);
 
-    // Create streaming message bubble
     const { bubble, sourcesContainer } = appendStreamingMessage();
     let fullText = '';
 
@@ -223,7 +200,7 @@ async function sendMessage(text) {
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
-      buffer = lines.pop(); // keep incomplete line
+      buffer = lines.pop();
 
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
@@ -236,9 +213,9 @@ async function sendMessage(text) {
           } else if (data.error) {
             bubble.innerHTML = `⚠️ ${escHtml(data.error)}`;
           } else if (data.done) {
-            // Remove cursor, render final
+
             bubble.innerHTML = formatMarkdown(fullText);
-            // Show sources
+
             if (data.sources && data.sources.length > 0) {
               sourcesContainer.innerHTML = data.sources.map(s =>
                 `<span class="source-chip" title="${escHtml((s.chunk_text || '').slice(0, 120))}">
@@ -247,7 +224,7 @@ async function sendMessage(text) {
               ).join('');
             }
           }
-        } catch { /* skip malformed lines */ }
+        } catch {  }
       }
     }
 
@@ -279,8 +256,6 @@ function appendStreamingMessage() {
   bubble.removeAttribute('id');
   return { bubble, sourcesContainer };
 }
-
-// ── Message rendering ─────────────────────────────────────────
 
 function hideWelcome() {
   welcomeScreen.style.display = 'none';
@@ -344,17 +319,15 @@ function scrollToBottom() {
   container.scrollTop = container.scrollHeight;
 }
 
-// ── Simple markdown formatter ─────────────────────────────────
-
 function formatMarkdown(text) {
   let html = escHtml(text);
-  // Bold
+
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  // Italic
+
   html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-  // Code
+
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-  // Paragraphs
+
   html = html.split('\n\n').map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
   return html;
 }
@@ -367,8 +340,6 @@ function escHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-// ── Artifact generation ───────────────────────────────────────
-
 async function generateArtifact(topic, type = 'ship30') {
   if (state.isLoading) return;
   state.isLoading = true;
@@ -379,11 +350,9 @@ async function generateArtifact(topic, type = 'ship30') {
   try {
     await ensureSession();
     hideWelcome();
-    // Artifact-only sessions do not have a user message to name them. Show the
-    // requested topic in history immediately while generation is in progress.
+
     setCurrentConversationTitle(topic);
 
-    // Show loading state in artifact panel
     showArtifactLoading(topic, type);
 
     const artifact = await apiFetch('/api/artifacts/generate', {
@@ -397,8 +366,6 @@ async function generateArtifact(topic, type = 'ship30') {
       }),
     });
 
-    // A New Conversation click may have reset the UI while this request ran.
-    // Never let a stale response repopulate the new conversation's panel.
     if (requestId !== state.artifactRequestId || !state.sessionId) return;
 
     state.currentArtifact = artifact;
@@ -406,10 +373,8 @@ async function generateArtifact(topic, type = 'ship30') {
     renderArtifact(artifact);
     updateArtifactsSidebar();
 
-    // Open panel if hidden
     if (!state.artifactPanelOpen) toggleArtifactPanel();
 
-    // Add a chat message to confirm
     appendMessage('assistant',
       `✅ I've generated a Ship 30 for 30 essay: **${artifact.title}**\n\nYou can view it in the artifact panel →`,
       artifact.sources
@@ -460,11 +425,10 @@ function renderArtifact(artifact) {
 
   artifactTitle.textContent = artifact.title;
   artifactTypeBadge.textContent = artifact.artifact_type === 'ship30' ? 'Ship 30' : artifact.artifact_type;
-  // Count words from the raw markdown content
+
   const wordCount = artifact.content ? artifact.content.trim().split(/\s+/).filter(Boolean).length : (artifact.word_count || 0);
   artifactWordCount.textContent = `${wordCount.toLocaleString()} words`;
 
-  // Iframe: inject sanitized HTML with styling
   const styledHtml = `
     <!DOCTYPE html>
     <html>
@@ -489,7 +453,6 @@ function renderArtifact(artifact) {
   setIframeContent(styledHtml);
   rawContent.textContent = artifact.content;
 
-  // Sources
   if (artifact.sources && artifact.sources.length > 0) {
     sourcesSection.style.display = 'block';
     sourcesList.innerHTML = artifact.sources.map(s => `
@@ -505,11 +468,9 @@ function renderArtifact(artifact) {
 }
 
 function setIframeContent(html) {
-  // Use srcdoc — works reliably with sandboxed iframes regardless of origin
+
   artifactIframe.srcdoc = html;
 }
-
-// ── Artifact sidebar ──────────────────────────────────────────
 
 function updateArtifactsSidebar() {
   if (state.artifacts.length === 0) {
@@ -535,28 +496,24 @@ function updateArtifactsSidebar() {
   });
 }
 
-// ── Toggle artifact panel ─────────────────────────────────────
-
 function toggleArtifactPanel() {
   state.artifactPanelOpen = !state.artifactPanelOpen;
   artifactPanel.classList.toggle('hidden', !state.artifactPanelOpen);
 }
 
-// ── Model switching ───────────────────────────────────────────
-
 async function switchModel(provider, model) {
-  // Show a clear warning for cloud providers — no API key configured locally
+
   if (CLOUD_PROVIDERS.includes(provider)) {
     const providerLabel = provider === 'anthropic' ? 'Anthropic (Claude)' : 'OpenAI (GPT-4o)';
     showToast(
       `☁️ Cloud provider — API key not configured. Add ${provider.toUpperCase()}_API_KEY to .env and restart to use ${providerLabel}.`,
       'warning'
     );
-    // Still update the UI selection visually but stay on current working model for actual calls
+
     document.querySelectorAll('.model-option').forEach(el => {
       el.classList.toggle('active', el.dataset.provider === provider && el.dataset.model === model);
     });
-    // Update state so user knows what they picked, but warn in status bar
+
     state.activeProvider = provider;
     state.activeModel = model;
     statusDot.className = 'status-dot warn';
@@ -568,12 +525,10 @@ async function switchModel(provider, model) {
   state.activeProvider = provider;
   state.activeModel = model;
 
-  // Update UI
   document.querySelectorAll('.model-option').forEach(el => {
     el.classList.toggle('active', el.dataset.provider === provider && el.dataset.model === model);
   });
 
-  // Update status
   statusDot.className = 'status-dot warn';
   statusText.textContent = `Switching to ${provider}…`;
 
@@ -599,8 +554,6 @@ async function switchModel(provider, model) {
   }
 }
 
-// ── Tab switching ─────────────────────────────────────────────
-
 function switchTab(tab) {
   const isPreview = tab === 'preview';
   $('tabPreview').classList.toggle('active', isPreview);
@@ -608,8 +561,6 @@ function switchTab(tab) {
   $('panePreview').style.display = isPreview ? 'block' : 'none';
   $('paneRaw').style.display    = isPreview ? 'none'  : 'block';
 }
-
-// ── Toast notifications ───────────────────────────────────────
 
 function showToast(message, type = 'info') {
   const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
@@ -620,16 +571,11 @@ function showToast(message, type = 'info') {
   setTimeout(() => toast.remove(), 4000);
 }
 
-// ── Auto-resize textarea ──────────────────────────────────────
-
 function autoResize(el) {
   el.style.height = 'auto';
   el.style.height = Math.min(el.scrollHeight, 140) + 'px';
 }
 
-// ── Event listeners ───────────────────────────────────────────
-
-// Send on Enter (Shift+Enter for newline)
 chatInput.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
@@ -641,7 +587,6 @@ chatInput.addEventListener('input', () => autoResize(chatInput));
 
 sendBtn.addEventListener('click', () => sendMessage(chatInput.value));
 
-// Suggestion chips
 document.querySelectorAll('.suggestion-chip').forEach(btn => {
   btn.addEventListener('click', () => {
     chatInput.value = btn.dataset.query;
@@ -650,7 +595,6 @@ document.querySelectorAll('.suggestion-chip').forEach(btn => {
   });
 });
 
-// Ship30 button
 $('ship30Btn').addEventListener('click', () => {
   ship30Topic.value = chatInput.value.trim() || '';
   ship30Modal.style.display = 'flex';
@@ -663,7 +607,6 @@ $('generateDemoBtn').addEventListener('click', () => {
   setTimeout(() => ship30Topic.focus(), 100);
 });
 
-// Ship30 modal
 $('confirmShip30').addEventListener('click', async () => {
   const topic = ship30Topic.value.trim();
   if (!topic) { ship30Topic.focus(); return; }
@@ -679,27 +622,22 @@ ship30Topic.addEventListener('keydown', e => {
   if (e.key === 'Escape') $('closeShip30Modal').click();
 });
 
-// Toggle artifact panel
 $('toggleArtifactBtn').addEventListener('click', toggleArtifactPanel);
 
-// Model selector
 document.querySelectorAll('.model-option').forEach(opt => {
   opt.addEventListener('click', () => {
     switchModel(opt.dataset.provider, opt.dataset.model);
   });
 });
 
-// Tab switching
 $('tabPreview').addEventListener('click', () => switchTab('preview'));
 $('tabRaw').addEventListener('click', () => switchTab('raw'));
 
-// Sources toggle
 sourcesToggle.addEventListener('click', () => {
   const open = sourcesList.classList.toggle('open');
   sourcesToggle.classList.toggle('open', open);
 });
 
-// Copy artifact
 $('copyArtifactBtn').addEventListener('click', () => {
   if (!state.currentArtifact) return;
   navigator.clipboard.writeText(state.currentArtifact.content)
@@ -707,7 +645,6 @@ $('copyArtifactBtn').addEventListener('click', () => {
     .catch(() => showToast('Copy failed', 'error'));
 });
 
-// Export artifact as markdown file
 $('exportArtifactBtn').addEventListener('click', () => {
   if (!state.currentArtifact) return;
   const filename = state.currentArtifact.title
@@ -722,15 +659,12 @@ $('exportArtifactBtn').addEventListener('click', () => {
   showToast(`Downloaded ${filename}`, 'success');
 });
 
-// Sidebar toggle
 $('sidebarToggle').addEventListener('click', () => {
   $('sidebar').classList.toggle('collapsed');
 });
 
-// New chat is intentionally local-only. A history entry is created and named
-// immediately when the user sends their first message.
 $('newChatBtn').addEventListener('click', () => {
-  // Reset state
+
   state.sessionId = null;
   state.messages = [];
   state.artifactRequestId += 1;
@@ -738,7 +672,6 @@ $('newChatBtn').addEventListener('click', () => {
   state.artifacts = [];
   state.isLoading = false;
 
-  // Clear chat messages
   messagesList.innerHTML = '';
   welcomeScreen.style.display = 'flex';
   chatInput.value = '';
@@ -751,12 +684,9 @@ $('newChatBtn').addEventListener('click', () => {
   chatInput.focus();
 });
 
-// Modal backdrop close
 ship30Modal.addEventListener('click', e => {
   if (e.target === ship30Modal) ship30Modal.style.display = 'none';
 });
-
-// ── Settings modal ────────────────────────────────────────────
 
 const settingsModal  = $('settingsModal');
 const settingsBtn    = $('settingsBtn');
@@ -798,7 +728,7 @@ async function loadProviderStatus() {
       ? '✅ Configured' : 'API key required';
     $('openaiStatus').textContent = status.openai.configured
       ? '✅ Configured' : 'API key required';
-  } catch { /* non-critical */ }
+  } catch {  }
 }
 
 settingsBtn.addEventListener('click', openSettingsModal);
@@ -830,16 +760,15 @@ $('saveKeyBtn').addEventListener('click', async () => {
     });
     apiKeyFeedback.className = 'api-key-feedback success';
     apiKeyFeedback.textContent = `✅ ${res.message}`;
-    apiKeyInput.value = '';  // clear from DOM immediately
+    apiKeyInput.value = '';
     loadProviderStatus();
 
-    // Also switch the model selector to this provider
     const modelMap = {
       anthropic: 'claude-3-5-sonnet-20241022',
       openai: 'gpt-4o',
     };
     if (modelMap[provider]) {
-      // Override cloud warning — key is now set
+
       state.activeProvider = provider;
       state.activeModel = modelMap[provider];
       document.querySelectorAll('.model-option').forEach(el => {
@@ -872,22 +801,17 @@ $('testConnectionBtn').addEventListener('click', async () => {
   }
 });
 
-// ── Init ──────────────────────────────────────────────────────
-
 (async function init() {
-  // Check server health
+
   await checkHealth();
 
-  // Poll health every 30s
   setInterval(checkHealth, 30_000);
 
-  // Set Ollama as the default active model in UI
   document.querySelectorAll('.model-option').forEach(el => {
     const isOllama = el.dataset.provider === 'ollama' && el.dataset.model === 'qwen3:4b';
     el.classList.toggle('active', isOllama);
   });
 
-  // Switch backend to ollama on load
   try {
     await apiFetch('/api/models/switch', {
       method: 'POST',
@@ -897,7 +821,6 @@ $('testConnectionBtn').addEventListener('click', async () => {
     console.warn('Could not set default model on init:', e.message);
   }
 
-  // Focus input
   chatInput.focus();
   await refreshConversations();
 
@@ -905,3 +828,4 @@ $('testConnectionBtn').addEventListener('click', async () => {
   console.log('%cDefault model: Ollama qwen3:4b (local)', 'color:#34d399');
   console.log('%cAPI:', 'font-weight:bold', API_BASE);
 })();
+

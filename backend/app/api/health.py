@@ -14,7 +14,6 @@ settings = get_settings()
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
     """Returns system health status including DB, LLM, and RAG index."""
-    # Check LLM
     try:
         provider, pname, mname = get_provider()
         llm_ok = await provider.health_check()
@@ -25,7 +24,7 @@ async def health_check():
 
     return HealthResponse(
         status="ok",
-        db="connected",  # DB check handled by startup
+        db="connected",
         llm_provider=pname,
         llm_model=mname,
         rag_index_size=rag_service.index_size(),

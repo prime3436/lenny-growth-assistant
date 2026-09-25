@@ -19,7 +19,6 @@ from app.models.schemas import SourceChunk
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# ── Singleton index ───────────────────────────────────────────────────────────
 
 _chunks: list[TranscriptChunk] = []
 _bm25: Optional[BM25Okapi] = None
@@ -72,14 +71,13 @@ def retrieve(query: str, top_k: int | None = None) -> list[SourceChunk]:
     tokenized_query = _tokenize(query)
     scores = _bm25.get_scores(tokenized_query)
 
-    # Get top-k indices sorted by score descending
     top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
 
     results = []
     for idx in top_indices:
         chunk = _chunks[idx]
         score = float(scores[idx])
-        if score > 0:  # skip zero-score results
+        if score > 0:
             results.append(
                 SourceChunk(
                     episode_title=chunk.episode_title,

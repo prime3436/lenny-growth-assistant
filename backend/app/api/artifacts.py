@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/artifacts", tags=["artifacts"])
 
 
-# ── HTML sanitization ──────────────────────────────────────────────────────────
 
 ALLOWED_TAGS = [
     "p", "br", "strong", "em", "b", "i", "u", "h1", "h2", "h3", "h4",
@@ -52,15 +51,11 @@ def markdown_to_simple_html(md: str) -> str:
     (In production, use a proper library like markdown-it-py.)
     """
     html = md
-    # Headers
     html = re.sub(r"^### (.+)$", r"<h3>\1</h3>", html, flags=re.MULTILINE)
     html = re.sub(r"^## (.+)$", r"<h2>\1</h2>", html, flags=re.MULTILINE)
     html = re.sub(r"^# (.+)$", r"<h1>\1</h1>", html, flags=re.MULTILINE)
-    # Bold
     html = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", html)
-    # Italic
     html = re.sub(r"\*(.+?)\*", r"<em>\1</em>", html)
-    # Line breaks → paragraphs
     paragraphs = re.split(r"\n\n+", html)
     html = "".join(
         f"<p>{p.strip()}</p>" if not p.strip().startswith("<h") else p.strip()
@@ -69,7 +64,6 @@ def markdown_to_simple_html(md: str) -> str:
     return html
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("/generate", response_model=ArtifactResponse, status_code=201)
 async def generate_artifact(
@@ -82,7 +76,6 @@ async def generate_artifact(
       - markdown: RAG-grounded markdown document
       - html: Sanitized HTML snippet
     """
-    # Validate session
     result = await db.execute(select(DBSession).where(DBSession.id == body.session_id))
     session = result.scalar_one_or_none()
     if not session:
@@ -102,12 +95,10 @@ async def generate_artifact(
             title = extract_title(content, fallback=body.topic)
 
         elif body.artifact_type in ("markdown", "html"):
-            # Generic RAG-grounded generation
             sources = retrieve(body.topic, top_k=5)
             context = format_context(sources)
             provider, pname, mname = get_provider(body.model_provider, body.model_name)
 
-            # Adapt for local vs cloud
             is_local = pname == "ollama"
             length_hint = "concise (~300 words)" if is_local else "detailed"
             topic_str = body.topic
@@ -140,7 +131,6 @@ async def generate_artifact(
         logger.error(f"Artifact generation error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Artifact generation failed")
 
-    # Sanitize to HTML for iframe viewer
     if body.artifact_type == "html":
         sanitized = sanitize_html(content)
     else:
@@ -148,7 +138,6 @@ async def generate_artifact(
 
     word_count = count_words(content)
 
-    # Persist artifact
     artifact = DBArtifact(
         session_id=body.session_id,
         artifact_type=body.artifact_type,
@@ -160,9 +149,6 @@ async def generate_artifact(
     )
     db.add(artifact)
 
-    # An artifact can be the first action in a session. Save its requested topic
-    # so the conversation sidebar displays a meaningful name instead of
-    # "New conversation" when there are no chat messages.
     metadata = dict(session.user_metadata or {})
     metadata["title"] = body.topic.strip()[:80]
     metadata["kind"] = "artifact"

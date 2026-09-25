@@ -13,15 +13,12 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # App
     app_env: str = "development"
     log_level: str = "INFO"
     secret_key: str = "change-me"
 
-    # Database
     database_url: str = "postgresql+asyncpg://lenny:lenny@localhost:5432/lenny_db"
 
-    # LLM
     llm_provider: Literal["anthropic", "openai", "ollama"] = "ollama"
     anthropic_api_key: str = ""
     openai_api_key: str = ""
@@ -30,13 +27,11 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen3:4b"
 
-    # RAG
     transcripts_dir: str = "../data/transcripts"
     bm25_top_k: int = 5
     chunk_size: int = 500
     chunk_overlap: int = 50
 
-    # CORS
     cors_origins: str = "http://localhost:3000,http://localhost:8080,http://127.0.0.1:5500"
 
     @property
@@ -50,11 +45,9 @@ class Settings(BaseSettings):
         candidate = Path(self.transcripts_dir)
         if candidate.is_dir():
             return str(candidate)
-        # Check relative to backend/
         backend_rel = Path(__file__).resolve().parent.parent.parent / "data" / "transcripts"
         if backend_rel.is_dir():
             return str(backend_rel)
-        # Check docker container default
         container_path = Path("/app/data/transcripts")
         if container_path.is_dir():
             return str(container_path)

@@ -9,10 +9,9 @@ from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field
 
 
-# ── Session ──────────────────────────────────────────────────────────────────
 
 class SessionCreate(BaseModel):
-    model: Optional[str] = None  # override default model for this session
+    model: Optional[str] = None
 
 
 class SessionResponse(BaseModel):
@@ -31,7 +30,6 @@ class SessionSummary(SessionResponse):
     message_count: int
 
 
-# ── Chat ──────────────────────────────────────────────────────────────────────
 
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant"]
@@ -68,7 +66,6 @@ class ChatResponse(BaseModel):
     model_config = {"protected_namespaces": ()}
 
 
-# ── Artifact ──────────────────────────────────────────────────────────────────
 
 class ArtifactType(str):
     MARKDOWN = "markdown"
@@ -91,8 +88,8 @@ class ArtifactResponse(BaseModel):
     session_id: uuid.UUID
     artifact_type: str
     title: str
-    content: str  # raw Markdown / HTML
-    sanitized_html: Optional[str] = None  # bleach-sanitized for iframe
+    content: str
+    sanitized_html: Optional[str] = None
     word_count: int
     sources: list[SourceChunk] = []
     created_at: datetime
@@ -100,7 +97,6 @@ class ArtifactResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# ── Model switching ───────────────────────────────────────────────────────────
 
 class ModelSwitchRequest(BaseModel):
     provider: Literal["anthropic", "openai", "ollama"]
@@ -118,7 +114,6 @@ class ModelSwitchResponse(BaseModel):
     model_config = {"protected_namespaces": ()}
 
 
-# ── Health ────────────────────────────────────────────────────────────────────
 
 class HealthResponse(BaseModel):
     status: str

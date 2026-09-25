@@ -8,7 +8,6 @@ from app.services.rag import build_index, retrieve, format_context, _chunks, _bm
 from app.models.schemas import SourceChunk
 
 
-# ── Ingestion tests ───────────────────────────────────────────
 
 class TestParseFrontmatter:
     def test_parses_valid_yaml(self):
@@ -32,7 +31,6 @@ This is the transcript body."""
 
     def test_handles_malformed_yaml(self):
         raw = "---\nbad: yaml: here: x\n---\nbody"
-        # Should not raise, just return empty meta
         meta, body = _parse_frontmatter(raw)
         assert isinstance(meta, dict)
 
@@ -63,7 +61,6 @@ class TestChunkText:
     def test_overlap_creates_continuity(self):
         text = " ".join([f"word{i}" for i in range(200)])
         chunks = _chunk_text(text, chunk_size=100, overlap=20)
-        # Last words of chunk[0] should appear in chunk[1]
         last_words_c0 = set(chunks[0].split()[-20:])
         first_words_c1 = set(chunks[1].split()[:20])
         assert len(last_words_c0 & first_words_c1) > 0
@@ -75,7 +72,6 @@ class TestChunkText:
         assert chunks[0] == text
 
 
-# ── RAG index tests ───────────────────────────────────────────
 
 class TestBM25Index:
     @pytest.fixture(autouse=True)

@@ -31,7 +31,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["chat"])
 
 
-# ── Sessions ──────────────────────────────────────────────────────────────────
 
 @router.post("/sessions", response_model=SessionResponse, status_code=201)
 async def create_session(
@@ -88,8 +87,6 @@ async def list_sessions(db: AsyncSession = Depends(get_db)):
             created_at=session.created_at,
             model_provider=session.model_provider,
             model_name=session.model_name,
-            # Artifact-only sessions have no user message. Their topic is saved
-            # as metadata so the history never falls back to an anonymous label.
             title=(title or (session.user_metadata or {}).get("title") or "New conversation").strip()[:80],
             message_count=count,
         )
@@ -128,7 +125,6 @@ async def get_session_history(session_id: uuid.UUID, db: AsyncSession = Depends(
     ]
 
 
-# ── Chat ──────────────────────────────────────────────────────────────────────
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(body: ChatRequest, db: AsyncSession = Depends(get_db)):
@@ -136,13 +132,11 @@ async def chat(body: ChatRequest, db: AsyncSession = Depends(get_db)):
     Send a message and get a RAG-grounded response.
     Maintains multi-turn context via session history.
     """
-    # 1. Load session
     result = await db.execute(select(DBSession).where(DBSession.id == body.session_id))
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # 2. Load conversation history (last 10 turns for context window)
     history_result = await db.execute(
         select(DBMessage)
         .where(DBMessage.session_id == body.session_id)
@@ -151,11 +145,9 @@ async def chat(body: ChatRequest, db: AsyncSession = Depends(get_db)):
     )
     history = list(reversed(history_result.scalars().all()))
 
-    # 3. Retrieve relevant transcript chunks
     sources = retrieve(body.message, top_k=5)
     context = format_context(sources)
 
-    # 4. Build messages list for LLM
     system = SYSTEM_PROMPT + f"\n\n## Relevant Transcript Context\n\n{context}"
 
     messages: list[dict] = []
@@ -163,13 +155,11 @@ async def chat(body: ChatRequest, db: AsyncSession = Depends(get_db)):
         messages.append({"role": h.role, "content": h.content})
     messages.append({"role": "user", "content": body.message})
 
-    # 5. Get LLM provider (allow per-request override)
     try:
         provider, pname, mname = get_provider(body.model_provider, body.model_name)
     except (ValueError, RuntimeError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # 6. Generate response (with latency tracking)
     t0 = time.monotonic()
     try:
         answer = await provider.complete(messages=messages, system=system)
@@ -180,7 +170,6 @@ async def chat(body: ChatRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=500, detail="LLM request failed")
     latency_ms = (time.monotonic() - t0) * 1000
 
-    # 7. Persist user + assistant messages
     now = datetime.now(timezone.utc)
     user_msg = DBMessage(
         session_id=body.session_id,
@@ -205,7 +194,6 @@ async def chat(body: ChatRequest, db: AsyncSession = Depends(get_db)):
     await db.flush()
     await db.refresh(assistant_msg)
 
-    # 8. Log agent trajectory
     turn_count = len(history) // 2 + 1
     log_trajectory(
         session_id=body.session_id,
@@ -230,7 +218,6 @@ async def chat(body: ChatRequest, db: AsyncSession = Depends(get_db)):
     )
 
 
-# ── Streaming chat ────────────────────────────────────────────────────────────
 
 @router.post("/chat/stream")
 async def chat_stream(body: ChatRequest, db: AsyncSession = Depends(get_db)):
@@ -268,9 +255,6 @@ async def chat_stream(body: ChatRequest, db: AsyncSession = Depends(get_db)):
 
     sources_dicts = [s.model_dump() for s in sources]
 
-    # Save the user's message before starting the streamed response. This keeps
-    # the conversation in history even if they start a new chat, navigate away,
-    # or the model takes a long time to finish.
     async with AsyncSessionLocal() as message_db:
         message_db.add(DBMessage(
             session_id=body.session_id,
@@ -296,8 +280,6 @@ async def chat_stream(body: ChatRequest, db: AsyncSession = Depends(get_db)):
 
         latency_ms = (time.monotonic() - t0) * 1000
 
-        # A streaming response outlives the request dependency. Persist the
-        # completed assistant reply with its own committed session.
         async with AsyncSessionLocal() as active_db:
             assistant_msg = DBMessage(
                 session_id=body.session_id, role="assistant",
@@ -307,7 +289,6 @@ async def chat_stream(body: ChatRequest, db: AsyncSession = Depends(get_db)):
             active_db.add(assistant_msg)
             await active_db.commit()
 
-        # Log trajectory
         turn_count = len(history) // 2 + 1
         log_trajectory(
             session_id=body.session_id,
@@ -320,7 +301,6 @@ async def chat_stream(body: ChatRequest, db: AsyncSession = Depends(get_db)):
             stream=True,
         )
 
-        # Done event with sources
         yield f"data: {json.dumps({'done': True, 'sources': sources_dicts, 'model_provider': pname, 'model_name': mname})}\n\n"
 
     return StreamingResponse(
@@ -333,7 +313,6 @@ async def chat_stream(body: ChatRequest, db: AsyncSession = Depends(get_db)):
     )
 
 
-# ── Agent trajectory viewer ───────────────────────────────────────────────────
 
 @router.get("/trajectories")
 async def list_trajectories():
@@ -352,7 +331,6 @@ async def get_trajectory(session_id: uuid.UUID):
     return {"session_id": str(session_id), "turns": len(entries), "trajectory": entries}
 
 
-# ── Model switching ───────────────────────────────────────────────────────────
 
 @router.post("/models/switch", response_model=ModelSwitchResponse)
 async def switch_model(body: ModelSwitchRequest):
@@ -361,7 +339,6 @@ async def switch_model(body: ModelSwitchRequest):
     import app.services.llm as llm_module
     s = get_settings()
 
-    # Determine default model for provider
     if body.provider == "anthropic":
         mname = body.model_name or s.claude_model
     elif body.provider == "openai":
@@ -369,7 +346,6 @@ async def switch_model(body: ModelSwitchRequest):
     else:
         mname = body.model_name or s.ollama_model
 
-    # Try to build and health-check the provider
     try:
         from app.services.llm import build_provider
         prov = build_provider(body.provider, mname)
@@ -382,7 +358,6 @@ async def switch_model(body: ModelSwitchRequest):
             message=str(e),
         )
 
-    # Reset cached singleton
     llm_module._current_provider = prov
     llm_module._current_provider_name = body.provider
     llm_module._current_model_name = mname

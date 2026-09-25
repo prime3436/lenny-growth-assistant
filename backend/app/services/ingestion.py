@@ -16,13 +16,10 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-# GitHub API endpoint for the transcripts repo
-# Structure: episodes/<guest-name>/transcript.md
 REPO_API = "https://api.github.com/repos/ChatPRD/lennys-podcast-transcripts/contents/episodes"
 RAW_BASE  = "https://raw.githubusercontent.com/ChatPRD/lennys-podcast-transcripts/main/episodes"
 
 
-# ── Data structures ───────────────────────────────────────────────────────────
 
 class TranscriptChunk:
     __slots__ = ("episode_title", "episode_number", "guest", "chunk_text", "chunk_index")
@@ -51,7 +48,6 @@ class TranscriptChunk:
         }
 
 
-# ── Parsing ───────────────────────────────────────────────────────────────────
 
 def _parse_frontmatter(raw: str) -> tuple[dict, str]:
     """Split YAML front-matter from body. Returns (meta, body)."""
@@ -68,11 +64,8 @@ def _parse_frontmatter(raw: str) -> tuple[dict, str]:
 
 def _clean_text(text: str) -> str:
     """Remove transcript artifacts (timestamps, speaker labels, etc.)."""
-    # Remove timestamps like [00:01:23]
     text = re.sub(r"\[\d{2}:\d{2}:\d{2}\]", "", text)
-    # Remove speaker labels like "Lenny:" or "Guest (John):"
     text = re.sub(r"^[A-Za-z ]+(?:\([^)]+\))?:\s*", "", text, flags=re.MULTILINE)
-    # Collapse whitespace
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
@@ -91,7 +84,6 @@ def _chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str
     return chunks
 
 
-# ── Fetching ──────────────────────────────────────────────────────────────────
 
 def _list_transcript_files() -> list[str]:
     """
@@ -103,7 +95,6 @@ def _list_transcript_files() -> list[str]:
         resp = requests.get(REPO_API, timeout=15,
                             headers={"Accept": "application/vnd.github+json"})
         resp.raise_for_status()
-        # Each entry is a directory (episode slug), not a .md file
         slugs = [f["name"] for f in resp.json() if f["type"] == "dir"]
         logger.info(f"Found {len(slugs)} episode folders on GitHub")
         return slugs
@@ -124,7 +115,6 @@ def _fetch_raw_transcript(slug: str) -> str | None:
         return None
 
 
-# ── Local cache ───────────────────────────────────────────────────────────────
 
 def _load_local_transcripts(data_dir: str) -> Iterator[tuple[str, str]]:
     """Load already-downloaded .md files from local disk."""
@@ -138,7 +128,6 @@ def _save_transcript(data_dir: str, filename: str, content: str) -> None:
     (Path(data_dir) / filename).write_text(content, encoding="utf-8")
 
 
-# ── Main ingestion entry point ────────────────────────────────────────────────
 
 def ingest_transcripts(
     data_dir: str,

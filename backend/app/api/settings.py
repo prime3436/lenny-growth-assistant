@@ -20,16 +20,13 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
-# ── In-memory key store (never persisted, never logged) ───────────────────────
-# Keys live only for the lifetime of the server process.
-_runtime_keys: dict[str, str] = {}  # {"anthropic": "sk-ant-...", "openai": "sk-..."}
+_runtime_keys: dict[str, str] = {}
 
 
-# ── Schemas ───────────────────────────────────────────────────────────────────
 
 class KeyConfigRequest(BaseModel):
-    provider: str        # "anthropic" | "openai"
-    api_key: str         # Never logged or returned
+    provider: str
+    api_key: str
 
 
 class KeyConfigResponse(BaseModel):
@@ -50,7 +47,6 @@ class TestConnectionResponse(BaseModel):
     message: str
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def get_runtime_key(provider: str) -> Optional[str]:
     """Get a runtime-configured API key. Returns None if not set."""
@@ -65,11 +61,10 @@ def has_any_key(provider: str) -> bool:
     elif provider == "openai":
         return bool(_runtime_keys.get("openai") or settings.openai_api_key)
     elif provider == "ollama":
-        return True  # Always available
+        return True
     return False
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("/keys", response_model=KeyConfigResponse)
 async def configure_api_key(body: KeyConfigRequest):
@@ -87,7 +82,6 @@ async def configure_api_key(body: KeyConfigRequest):
     if not body.api_key or len(body.api_key.strip()) < 10:
         raise HTTPException(status_code=400, detail="API key appears invalid (too short).")
 
-    # Validate key format
     key = body.api_key.strip()
     if provider == "anthropic" and not key.startswith("sk-ant-"):
         raise HTTPException(
@@ -100,7 +94,6 @@ async def configure_api_key(body: KeyConfigRequest):
             detail="OpenAI API keys must start with 'sk-'. Please check your key."
         )
 
-    # Store in memory — NEVER log the key value
     _runtime_keys[provider] = key
     logger.info(f"API key configured for provider: {provider} (key not logged)")
 

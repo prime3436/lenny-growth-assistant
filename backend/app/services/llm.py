@@ -21,7 +21,6 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# ── Shared system prompt ──────────────────────────────────────────────────────
 
 SYSTEM_PROMPT = """You are the **Lenny Growth Assistant** — an expert AI trained on Lenny Rachitsky's podcast transcripts.
 
@@ -35,7 +34,6 @@ Rules:
 5. If asked to write a Ship 30 for 30 essay, follow the Ship 30 framework precisely."""
 
 
-# ── Base interface ────────────────────────────────────────────────────────────
 
 class BaseLLMProvider:
     async def complete(self, messages: list[dict], system: str = SYSTEM_PROMPT) -> str:
@@ -52,7 +50,6 @@ class BaseLLMProvider:
         raise NotImplementedError
 
 
-# ── Anthropic ─────────────────────────────────────────────────────────────────
 
 class AnthropicProvider(BaseLLMProvider):
     def __init__(self, api_key: str, model: str):
@@ -99,7 +96,6 @@ class AnthropicProvider(BaseLLMProvider):
             return False
 
 
-# ── OpenAI ────────────────────────────────────────────────────────────────────
 
 class OpenAIProvider(BaseLLMProvider):
     def __init__(self, api_key: str, model: str):
@@ -149,22 +145,17 @@ class OpenAIProvider(BaseLLMProvider):
             return False
 
 
-# ── Ollama (local) ────────────────────────────────────────────────────────────
 
 class OllamaProvider(BaseLLMProvider):
     def __init__(self, base_url: str, model: str, think: bool = False):
         self.base_url = base_url.rstrip("/")
         self.model = model
-        self.think = think  # Qwen3 thinking mode — set think=True for deeper reasoning
+        self.think = think
 
     def _build_payload(self, messages: list[dict], stream: bool = False) -> dict:
-        # IMPORTANT: Do NOT include an 'options' dict.
-        # On this Ollama/Qwen3 build, any 'options' key causes empty content responses.
-        # Qwen3 think mode is disabled via /no_think prefix on the last user message.
         processed = []
         for i, msg in enumerate(messages):
             if msg.get("role") == "user" and i == len(messages) - 1:
-                # /no_think disables Qwen3 extended reasoning for faster responses
                 processed.append({**msg, "content": "/no_think\n" + msg["content"]})
             else:
                 processed.append(msg)
@@ -218,7 +209,6 @@ class OllamaProvider(BaseLLMProvider):
                             continue
                         try:
                             data = json.loads(line)
-                            # Skip thinking tokens (internal reasoning)
                             if data.get("message", {}).get("role") == "think":
                                 continue
                             token = data.get("message", {}).get("content", "")
@@ -249,7 +239,6 @@ class OllamaProvider(BaseLLMProvider):
             return False
 
 
-# ── Provider factory ──────────────────────────────────────────────────────────
 
 _current_provider: Optional[BaseLLMProvider] = None
 _current_provider_name: str = ""
@@ -267,7 +256,7 @@ def build_provider(
     api_key_override: if provided, uses this key instead of settings/.env.
     Runtime keys from the settings API are checked automatically.
     """
-    from app.api.settings import get_runtime_key  # avoid circular at module level
+    from app.api.settings import get_runtime_key
 
     s = settings
     prov = (provider or s.llm_provider).lower()
@@ -322,7 +311,6 @@ def get_provider(
     else:
         raise ValueError(f"Unknown provider: {prov}")
 
-    # Reuse cached provider if same settings
     if (
         _current_provider is not None
         and _current_provider_name == prov

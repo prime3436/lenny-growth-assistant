@@ -88,19 +88,15 @@ async def generate_ship30_essay(
     Returns:
         (essay_markdown: str, sources: list[SourceChunk])
     """
-    # 1. Retrieve relevant transcript chunks
     sources = retrieve(topic, top_k=top_k)
     context = format_context(sources)
 
-    # 2. Resolve provider
     provider, pname, mname = get_provider(provider_name, model_name)
     is_local = pname == "ollama"
 
-    # 3. Adapt system prompt and word target based on provider
     system = SHIP30_SYSTEM_CONCISE if is_local else SHIP30_SYSTEM_FULL
     word_target = 800 if is_local else 1250
 
-    # 4. For Qwen3 models: suppress think-mode to save tokens on CPU
     topic_prompt = topic
     if is_local and "qwen3" in mname.lower():
         topic_prompt = f"/no_think {topic}"
@@ -132,9 +128,7 @@ def extract_title(essay: str, fallback: str = "Untitled Essay") -> str:
         return fallback
 
     first = lines[0]
-    # Strip markdown bold/italic
     first = re.sub(r"[*_#]", "", first).strip()
-    # Truncate to ~80 chars
     if len(first) > 80:
         first = first[:77] + "…"
     return first or fallback

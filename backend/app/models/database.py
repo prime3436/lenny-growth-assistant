@@ -50,11 +50,11 @@ class Message(Base):
     session_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"), index=True
     )
-    role: Mapped[str] = mapped_column(String(20))          # "user" | "assistant"
+    role: Mapped[str] = mapped_column(String(20))
     content: Mapped[str] = mapped_column(Text)
     model_provider: Mapped[str] = mapped_column(String(50), default="")
     model_name: Mapped[str] = mapped_column(String(100), default="")
-    sources: Mapped[list] = mapped_column(JSON, default=list)  # retrieved chunks
+    sources: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow
     )
@@ -72,7 +72,7 @@ class Artifact(Base):
     session_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"), index=True
     )
-    artifact_type: Mapped[str] = mapped_column(String(50))  # ship30 | markdown | html
+    artifact_type: Mapped[str] = mapped_column(String(50))
     title: Mapped[str] = mapped_column(String(300))
     content: Mapped[str] = mapped_column(Text)
     sanitized_html: Mapped[str] = mapped_column(Text, default="")

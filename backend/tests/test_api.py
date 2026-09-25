@@ -83,7 +83,6 @@ async def test_model_switch_bad_provider():
     ) as client:
         resp = await client.post(
             "/api/models/switch",
-            json={"provider": "ollama"},  # valid, just health might fail
+            json={"provider": "ollama"},
         )
-    # Should still return 200 with status field
     assert resp.status_code in (200, 422)

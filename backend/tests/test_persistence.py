@@ -20,9 +20,6 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy import select, text
 
 
-# ── Test DB connection string ────────────────────────────────────────────────
-# Defaults to localhost:5432 (works from host machine or docker exec -e override).
-# Override via: TEST_DATABASE_URL env var
 
 import os
 TEST_DB_URL = os.getenv(
@@ -31,7 +28,6 @@ TEST_DB_URL = os.getenv(
 )
 
 
-# ── Fixtures ─────────────────────────────────────────────────────────────────
 
 @pytest.fixture
 async def db_engine():
@@ -57,7 +53,6 @@ async def db_session(db_engine):
         yield session
 
 
-# ── Tests ─────────────────────────────────────────────────────────────────────
 
 class TestDatabaseSchema:
     """Verify that the schema and tables are created correctly."""
@@ -100,7 +95,6 @@ class TestSessionPersistence:
         assert fetched.model_provider == "ollama"
         assert fetched.model_name == "qwen3:4b"
 
-        # Cleanup
         await db_session.delete(fetched)
         await db_session.commit()
 
@@ -118,7 +112,6 @@ class TestMessagePersistence:
         await db_session.commit()
         await db_session.refresh(session)
 
-        # User message with RAG sources (JSON column)
         msg = Message(
             session_id=session.id,
             role="user",
@@ -131,7 +124,6 @@ class TestMessagePersistence:
         )
         db_session.add(msg)
 
-        # Assistant reply
         reply = Message(
             session_id=session.id,
             role="assistant",
@@ -143,7 +135,6 @@ class TestMessagePersistence:
         db_session.add(reply)
         await db_session.commit()
 
-        # Read back messages via query
         from app.models.database import Message as MessageModel
         result = await db_session.execute(
             select(MessageModel).where(MessageModel.session_id == session.id)
@@ -156,7 +147,6 @@ class TestMessagePersistence:
         assert user_msg.sources[0]["guest"] == "Brian Balfour"
         assert user_msg.sources[0]["score"] == 12.5
 
-        # Cleanup
         await db_session.delete(session)
         await db_session.commit()
 
@@ -199,7 +189,6 @@ class TestArtifactPersistence:
         assert fetched_art.artifact_type == "ship30"
         assert fetched_art.sources[0]["score"] == 18.0
 
-        # Cleanup
         await db_session.delete(session)
         await db_session.commit()
 
@@ -229,7 +218,6 @@ class TestCascadeDelete:
         db_session.add_all([msg, art])
         await db_session.commit()
 
-        # Delete parent
         await db_session.delete(session)
         await db_session.commit()
 
